@@ -81,18 +81,20 @@ struct MenuBarView: View {
     // MARK: Sections
 
     private var header: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 7) {
             AppMark(size: 18)
             Text("MEDIA SHUTTLE")
-                .font(Theme.mono(10, .semibold))
-                .tracking(1.1)
+                .font(Theme.mono(9, .semibold))
+                .tracking(0.8)
                 .foregroundStyle(Theme.textPrimary)
-            Spacer(minLength: 8)
+                .lineLimit(1)
+                .fixedSize()
+            Spacer(minLength: 6)
             HStack(spacing: 5) {
                 Rectangle()
                     .fill(model.statusTone.color)
                     .frame(width: 5, height: 5)
-                Text(model.topStatus)
+                Text(headerStatus)
                     .font(Theme.mono(9))
                     .tracking(0.6)
                     .foregroundStyle(Theme.textSecondary)
@@ -103,10 +105,18 @@ struct MenuBarView: View {
             .padding(.vertical, 3)
             .background(Theme.fill)
             .overlay(Rectangle().strokeBorder(Theme.hairline, lineWidth: 1))
+            // The status is the point of the header; the wordmark gives way to it.
+            .layoutPriority(1)
         }
         .padding(.horizontal, 12)
         .frame(height: 38)
         .background(Theme.chromeBackground)
+    }
+
+    /// The card's name is shown just below, so the header keeps only the state: "LEXAR · TRANSFER
+    /// VERIFIED" did not fit beside the wordmark at this width.
+    private var headerStatus: String {
+        model.topStatus.components(separatedBy: " · ").last ?? model.topStatus
     }
 
     private var source: some View {
@@ -304,19 +314,29 @@ struct MenuBarView: View {
 
     private var switches: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Toggle("Transfer new cards automatically", isOn: Binding(
+            switchRow("Transfer new cards automatically", isOn: Binding(
                 get: { model.settings.autoTransfer },
                 set: { model.setAutoTransfer($0) }
             ))
-            Toggle("Add to Photos after each transfer", isOn: Binding(
+            switchRow("Add to Photos after each transfer", isOn: Binding(
                 get: { model.settings.addToPhotosAfterTransfer },
                 set: { model.setAddToPhotosAfterTransfer($0) }
             ))
         }
-        .toggleStyle(.switch)
-        .controlSize(.mini)
-        .font(.system(size: 11.5))
-        .foregroundStyle(Theme.textSecondary)
+    }
+
+    /// Label on the left, switch against the right edge, so both switches line up.
+    private func switchRow(_ title: String, isOn: Binding<Bool>) -> some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 11.5))
+                .foregroundStyle(Theme.textSecondary)
+            Spacer(minLength: 8)
+            Toggle(title, isOn: isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+        }
     }
 
     private var recentActivity: some View {

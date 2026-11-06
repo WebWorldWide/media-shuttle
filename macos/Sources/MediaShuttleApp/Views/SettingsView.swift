@@ -39,6 +39,8 @@ struct SettingsView: View {
                 )
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             Section("System") {
@@ -53,7 +55,7 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .padding(8)
-        .frame(width: 560, height: 600)
+        .frame(width: 560, height: 720)
         .onChange(of: model.settings) { _, _ in
             model.saveSettings()
         }
