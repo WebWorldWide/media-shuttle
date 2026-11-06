@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Media Shuttle — verified camera-card ingest for Mac, Windows and Linux</title>
+  <meta name="description" content="Media Shuttle copies camera cards into a tidy folder layout, proves every copy with SHA-256, adds your shots to Apple Photos, and keeps erase locked until everything is safe. Free and open source.">
+  <link rel="canonical" href="https://mediashuttle.webworldwide.online/">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#0B0B0C">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Media Shuttle">
+  <meta property="og:description" content="Copy every card. Prove every copy. Verified camera-card ingest for Mac, Windows and Linux.">
+  <meta property="og:url" content="https://mediashuttle.webworldwide.online/">
+  <meta property="og:image" content="https://mediashuttle.webworldwide.online/assets/screenshot.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="nav">
+    <a class="brand" href="#top" aria-label="Media Shuttle home">
+      <img src="assets/icon.svg" alt="" width="28" height="28">
+      <span>MEDIA SHUTTLE</span>
+    </a>
+    <nav aria-label="Sections">
+      <a href="#how">How it works</a>
+      <a href="#photos">Apple Photos</a>
+      <a href="#features">Features</a>
+      <a href="#download">Download</a>
+      <a href="https://github.com/WebWorldWide/media-shuttle">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="pill"><span class="dot verified"></span><span id="version-pill">FREE · OPEN SOURCE · MIT</span></p>
+        <h1>Copy every card.<br><span class="accent">Prove every copy.</span></h1>
+        <p class="lede">
+          Media Shuttle pulls photos and videos off your camera card, sorts them into a predictable
+          folder layout, and checks every file with SHA-256 before it calls the job done.
+          Erase stays locked until the card and the copies still match.
+        </p>
+        <div class="cta">
+          <a class="button primary" id="primary-download" href="https://github.com/WebWorldWide/media-shuttle/releases/latest">Download for Mac</a>
+          <a class="button" href="#download">Windows &amp; Linux</a>
+        </div>
+        <p class="fineprint">macOS 14+ · signed and notarized by Apple · Windows 10/11 · Linux GTK&nbsp;3</p>
+      </div>
+      <div class="hero-mark" aria-hidden="true">
+        <img src="assets/icon.svg" alt="" width="260" height="260">
+      </div>
+    </section>
+
+    <section class="shot">
+      <figure class="window">
+        <img src="assets/screenshot.png" width="1600" height="800"
+             alt="Media Shuttle showing a verified transfer: 457 files from a LEXAR card, 442 copied, 15 already safe, 10.1 GB at 78.7 MB/s, erase unlocked.">
+      </figure>
+    </section>
+
+    <section id="how" class="section">
+      <p class="label">HOW IT WORKS</p>
+      <h2>Three steps, and the last one is optional.</h2>
+      <ol class="steps">
+        <li class="panel">
+          <span class="step">01 · SORT</span>
+          <h3>Insert the card</h3>
+          <p>Media Shuttle finds camera media in <code>DCIM</code>, <code>M4ROOT</code> and <code>PRIVATE</code> and sorts it into
+            <code>Photos/JPEGs</code>, <code>Photos/RAWs</code>, <code>Photos/Other</code> and <code>Videos</code>, optionally by date.
+            It can start on its own the moment a card mounts.</p>
+        </li>
+        <li class="panel">
+          <span class="step">02 · VERIFY</span>
+          <h3>Every copy is proven</h3>
+          <p>Each file is written to a temporary name, the card copy and the destination copy are hashed independently, and it
+            is published only when they match. Files already at the destination are re-verified and reused, never duplicated.</p>
+        </li>
+        <li class="panel">
+          <span class="step">03 · ERASE</span>
+          <h3>Clear the card, safely</h3>
+          <p>Erase unlocks only after a verified transfer. Before deleting anything, the card is rescanned and every file is
+            checked against its copy again. Unknown files keep erase locked, and you type <code>ERASE EVERYTHING</code> to confirm.</p>
+        </li>
+      </ol>
+    </section>
+
+    <section id="photos" class="section split">
+      <div>
+        <p class="label">NEW IN 0.2 · MAC</p>
+        <h2>Straight into Apple Photos.</h2>
+        <p>One click — or automatically after every transfer — sends the verified copies to your Photos library, and iCloud
+          Photos takes them to your iPhone, iPad and every other Mac.</p>
+        <ul class="ticks">
+          <li>RAW+JPEG pairs become a single photo, the way Photos imports from a camera.</li>
+          <li>Anything already added is remembered and never added twice.</li>
+          <li>Add-only access: Media Shuttle can put photos in your library, never read it.</li>
+          <li>Formats Photos can’t take — BRAW, R3D, MXF, AVCHD — stay safe in your folder.</li>
+        </ul>
+      </div>
+      <div class="panel menu-demo" aria-label="Illustration of the Media Shuttle menu bar panel">
+        <div class="menu-head">
+          <span>MEDIA SHUTTLE</span>
+          <span class="status"><span class="dot"></span>TRANSFER ACTIVE</span>
+        </div>
+        <div class="menu-body">
+          <div class="menu-card">
+            <strong>LEXAR</strong>
+            <span>457 files · 10.13 GB</span>
+            <span>418 JPEG · 39 RAW</span>
+          </div>
+          <div class="menu-progress">
+            <div class="row"><span>COPYING</span><span>62%</span></div>
+            <div class="bar"><span style="width:62%"></span></div>
+            <div class="row muted"><span>284 of 457 files</span><span>81 MB/s</span></div>
+          </div>
+          <ul class="menu-actions">
+            <li>Cancel Transfer</li>
+            <li>Add to Apple Photos <kbd>⇧⌘P</kbd></li>
+            <li>Eject LEXAR <kbd>⌘E</kbd></li>
+            <li>Open Destination</li>
+          </ul>
+          <div class="menu-switches">
+            <span><i class="switch on"></i>Transfer new cards automatically</span>
+            <span><i class="switch on"></i>Add to Photos after each transfer</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="section">
+      <p class="label">FEATURES</p>
+      <h2>Built for the end of a long shoot.</h2>
+      <div class="grid">
+        <article class="panel">
+          <h3>SHA-256 on every file</h3>
+          <p>Card and destination are hashed separately. Nothing is called safe on the strength of a file size.</p>
+        </article>
+        <article class="panel">
+          <h3>Runs from the menu bar</h3>
+          <p>Card status, live progress, recent activity, eject and the automation switches, without opening a window.</p>
+        </article>
+        <article class="panel">
+          <h3>Hands-off ingest</h3>
+          <p>Watches for cards in the background, transfers automatically if you want it to, and notifies you when it’s done — or when it couldn’t be.</p>
+        </article>
+        <article class="panel">
+          <h3>Every camera format</h3>
+          <p>ARW, CR3, NEF, RAF, DNG, ORF, RW2 and dozens more RAW formats, HEIF, plus MP4, MOV, MXF, BRAW, R3D and AVCHD video.</p>
+        </article>
+        <article class="panel">
+          <h3>No duplicates, no overwrites</h3>
+          <p>Identical files already at the destination are reused. Different files with the same name are kept side by side.</p>
+        </article>
+        <article class="panel">
+          <h3>Private by design</h3>
+          <p>No accounts, no analytics, no network requests. Settings, logs and transfer reports stay on your computer.</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="download" class="section">
+      <p class="label">DOWNLOAD</p>
+      <h2>Free on every desktop.</h2>
+      <div class="grid platforms">
+        <article class="panel platform">
+          <h3>macOS</h3>
+          <p>Universal DMG for Apple silicon and Intel. macOS 14 or later. Signed and notarized, so it opens like any other app.</p>
+          <a class="button primary" data-asset="macOS-universal.dmg" href="https://github.com/WebWorldWide/media-shuttle/releases/latest">Download DMG</a>
+        </article>
+        <article class="panel platform">
+          <h3>Windows</h3>
+          <p>Installer or portable ZIP for Windows 10 and 11, x64. Self-contained — no .NET install needed.</p>
+          <a class="button primary" data-asset="win-x64.exe" href="https://github.com/WebWorldWide/media-shuttle/releases/latest">Download installer</a>
+        </article>
+        <article class="panel platform">
+          <h3>Linux</h3>
+          <p>A native GTK 3 app. Build from source and install for your user with one script — no root needed.</p>
+          <a class="button" href="https://github.com/WebWorldWide/media-shuttle#linux">Build instructions</a>
+        </article>
+      </div>
+      <p class="fineprint center">Every release ships SHA-256 checksums. <a href="https://github.com/WebWorldWide/media-shuttle/releases">All releases</a></p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="brand">
+      <img src="assets/icon.svg" alt="" width="22" height="22">
+      <span>MEDIA SHUTTLE</span>
+    </div>
+    <p>MIT licensed · <a href="https://github.com/WebWorldWide/media-shuttle">Source on GitHub</a> · <a href="https://github.com/WebWorldWide/media-shuttle/issues">Report an issue</a></p>
+  </footer>
+
+  <script>
+    // Point the download buttons straight at the newest release's files. Without JavaScript, or if
+    // GitHub's API is unavailable, they keep linking to the latest release page.
+    fetch("https://api.github.com/repos/WebWorldWide/media-shuttle/releases/latest")
+      .then((response) => (response.ok ? response.json() : Promise.reject()))
+      .then((release) => {
+        const assets = release.assets || [];
+        const find = (suffix) => assets.find((asset) => asset.name.endsWith(suffix));
+        document.querySelectorAll("[data-asset]").forEach((link) => {
+          const asset = find(link.dataset.asset);
+          if (asset) link.href = asset.browser_download_url;
+        });
+        const dmg = find("macOS-universal.dmg");
+        if (dmg) document.getElementById("primary-download").href = dmg.browser_download_url;
+        const version = (release.tag_name || "").replace(/^v/, "");
+        if (version) document.getElementById("version-pill").textContent = `VERSION ${version} · FREE · OPEN SOURCE`;
+      })
+      .catch(() => {});
+  </script>
+</body>
+</html>

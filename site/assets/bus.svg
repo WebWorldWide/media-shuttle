@@ -1,0 +1,251 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-labelledby="logoTitle logoDesc">
+  <title id="logoTitle">Media Shuttle</title>
+  <desc id="logoDesc">An SD card drawn as a school bus. The card's chamfered corner is the raked windshield, and the same chamfer is echoed in the driver's window.</desc>
+
+  <defs>
+    <!-- One light, high and slightly forward. Every gradient below agrees with it. -->
+    <linearGradient id="chassis" x1="0" y1="0" x2="0.12" y2="1">
+      <stop offset="0" stop-color="#2B2E36"/>
+      <stop offset="0.30" stop-color="#16181D"/>
+      <stop offset="0.78" stop-color="#0B0C10"/>
+      <stop offset="1" stop-color="#15171C"/>
+    </linearGradient>
+
+    <linearGradient id="rocker" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0"/>
+      <stop offset="1" stop-color="#A7B2C4" stop-opacity="0.34"/>
+    </linearGradient>
+
+    <linearGradient id="paint" x1="0.1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFE978"/>
+      <stop offset="0.18" stop-color="#FFDC2E"/>
+      <stop offset="0.62" stop-color="#FFC907"/>
+      <stop offset="1" stop-color="#E9A800"/>
+    </linearGradient>
+
+    <linearGradient id="paintShade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.55" stop-color="#6B4400" stop-opacity="0"/>
+      <stop offset="1" stop-color="#6B4400" stop-opacity="0.30"/>
+    </linearGradient>
+
+    <linearGradient id="paintGloss" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFCE2" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#FFFCE2" stop-opacity="0"/>
+    </linearGradient>
+
+    <linearGradient id="glass" x1="0.15" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#232C3C"/>
+      <stop offset="0.5" stop-color="#101520"/>
+      <stop offset="1" stop-color="#080A0F"/>
+    </linearGradient>
+
+    <linearGradient id="glassTop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#AFC6E8" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#AFC6E8" stop-opacity="0"/>
+    </linearGradient>
+
+    <linearGradient id="sheen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#CFE0FF" stop-opacity="0.10"/>
+      <stop offset="1" stop-color="#CFE0FF" stop-opacity="0"/>
+    </linearGradient>
+
+    <linearGradient id="tyre" x1="0.28" y1="0" x2="0.72" y2="1">
+      <stop offset="0" stop-color="#34373D"/>
+      <stop offset="0.42" stop-color="#191B20"/>
+      <stop offset="1" stop-color="#0A0B0E"/>
+    </linearGradient>
+
+    <radialGradient id="rim" cx="0.34" cy="0.28" r="0.88">
+      <stop offset="0" stop-color="#FAFBFC"/>
+      <stop offset="0.5" stop-color="#C9CED6"/>
+      <stop offset="0.85" stop-color="#8D939C"/>
+      <stop offset="1" stop-color="#6A707A"/>
+    </radialGradient>
+
+    <linearGradient id="switch" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F2F4F7"/>
+      <stop offset="0.5" stop-color="#C3C8D0"/>
+      <stop offset="1" stop-color="#868C96"/>
+    </linearGradient>
+
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0.4">
+      <stop offset="0" stop-color="#B07C22"/>
+      <stop offset="0.35" stop-color="#F6D072"/>
+      <stop offset="0.7" stop-color="#D9A63C"/>
+      <stop offset="1" stop-color="#A97620"/>
+    </linearGradient>
+
+    <radialGradient id="lamp" cx="0.42" cy="0.36" r="0.7">
+      <stop offset="0" stop-color="#FFFDF2"/>
+      <stop offset="0.45" stop-color="#FFE7A8"/>
+      <stop offset="1" stop-color="#D79A31"/>
+    </radialGradient>
+
+    <radialGradient id="ambient" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#000" stop-opacity="0.34"/>
+      <stop offset="0.55" stop-color="#000" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="arch" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0.74" stop-color="#000" stop-opacity="0"/>
+      <stop offset="0.82" stop-color="#000" stop-opacity="0.40"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="contact" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#000" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#000" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- The card's outline, used to keep the wheel-arch shadow on the vehicle. -->
+    <clipPath id="cardClip"><path d="M92 236 H802 L932 366 V690 H92 Z"/></clipPath>
+    <clipPath id="bodyClip"><rect x="138" y="282" width="512" height="362" rx="54"/></clipPath>
+    <clipPath id="w1"><rect x="172" y="316" width="93" height="128" rx="13"/></clipPath>
+    <clipPath id="w2"><rect x="289" y="316" width="93" height="128" rx="13"/></clipPath>
+    <clipPath id="w3"><rect x="406" y="316" width="93" height="128" rx="13"/></clipPath>
+    <clipPath id="w4"><rect x="523" y="316" width="93" height="128" rx="13"/></clipPath>
+    <clipPath id="wDriver"><path d="M694 316 H784 L840 372 V444 H694 Z"/></clipPath>
+  </defs>
+
+  <!-- Ground: one broad ambient pool, plus a tight shadow under each tyre so the bus
+       sits on the surface instead of hovering over a smudge. -->
+  <ellipse cx="512" cy="772" rx="358" ry="30" fill="url(#ambient)"/>
+  <ellipse cx="280" cy="766" rx="104" ry="20" fill="url(#contact)"/>
+  <ellipse cx="778" cy="766" rx="104" ry="20" fill="url(#contact)"/>
+
+  <!-- Roof hatch, which is the card's write-protect switch. Sunk into a slot so it
+       belongs to the roof rather than sitting on top of it. -->
+  <rect x="646" y="224" width="92" height="24" rx="8" fill="#0A0B0E"/>
+  <rect x="652" y="222" width="80" height="22" rx="7" fill="url(#switch)"/>
+  <rect x="652" y="222" width="80" height="7" rx="3.5" fill="#FFFFFF" opacity="0.6"/>
+
+  <!-- Card body. A round-joined stroke of its own colour gives every corner, including
+       both ends of the chamfer, one 20px radius. -->
+  <path d="M112 256 H782 L912 386 V670 H112 Z"
+        fill="url(#chassis)" stroke="url(#chassis)" stroke-width="40"
+        stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- Rim light: roof, chamfer, and a rocker highlight that separates the skirt from
+       the tyres. Without it the bottom of the card and the tyres read as one black mass. -->
+  <path d="M124 245 H786 L923 382" fill="none" stroke="#8892A3" stroke-width="3.5"
+        stroke-linejoin="round" stroke-linecap="round" opacity="0.55"/>
+  <rect x="112" y="648" width="800" height="34" fill="url(#rocker)"/>
+
+  <!-- Yellow panel. -->
+  <rect x="138" y="282" width="512" height="362" rx="54" fill="url(#paint)"/>
+  <g clip-path="url(#bodyClip)">
+    <rect x="138" y="282" width="512" height="362" fill="url(#paintShade)"/>
+    <rect x="138" y="282" width="512" height="30" fill="url(#paintGloss)"/>
+  </g>
+  <rect x="139.25" y="283.25" width="509.5" height="359.5" rx="52.75" fill="none"
+        stroke="#7A5200" stroke-width="2.5" opacity="0.30"/>
+
+  <!-- Drip rail: the step where a bus roof turns down into the body side. -->
+  <rect x="168" y="300" width="448" height="4" rx="2" fill="#8A5F00" opacity="0.30"/>
+
+  <!-- Side windows. -->
+  <g>
+    <rect x="172" y="316" width="93" height="128" rx="13" fill="url(#glass)"/>
+    <g clip-path="url(#w1)"><path d="M172 444 L265 316 L265 360 L214 444 Z" fill="url(#sheen)"/>
+      <rect x="172" y="316" width="93" height="26" fill="url(#glassTop)"/></g>
+    <rect x="289" y="316" width="93" height="128" rx="13" fill="url(#glass)"/>
+    <g clip-path="url(#w2)"><path d="M289 444 L382 316 L382 360 L331 444 Z" fill="url(#sheen)"/>
+      <rect x="289" y="316" width="93" height="26" fill="url(#glassTop)"/></g>
+    <rect x="406" y="316" width="93" height="128" rx="13" fill="url(#glass)"/>
+    <g clip-path="url(#w3)"><path d="M406 444 L499 316 L499 360 L448 444 Z" fill="url(#sheen)"/>
+      <rect x="406" y="316" width="93" height="26" fill="url(#glassTop)"/></g>
+    <rect x="523" y="316" width="93" height="128" rx="13" fill="url(#glass)"/>
+    <g clip-path="url(#w4)"><path d="M523 444 L616 316 L616 360 L565 444 Z" fill="url(#sheen)"/>
+      <rect x="523" y="316" width="93" height="26" fill="url(#glassTop)"/></g>
+  </g>
+
+  <!-- Driver's window. Its forward edge is cut at the same 45 degrees as the card's
+       chamfer, so the one detail that makes it an SD card also makes it a bus. -->
+  <path d="M694 316 H784 L840 372 V444 H694 Z" fill="url(#glass)"
+        stroke="url(#glass)" stroke-width="22" stroke-linejoin="round"/>
+  <g clip-path="url(#wDriver)">
+    <path d="M694 444 L800 316 L800 360 L742 444 Z" fill="url(#sheen)"/>
+    <rect x="694" y="316" width="146" height="26" fill="url(#glassTop)"/>
+  </g>
+
+  <!-- Rub rails, lit along their top edge so they read as raised mouldings. -->
+  <rect x="172" y="478" width="444" height="13" rx="6.5" fill="#0C0D11"/>
+  <rect x="172" y="478" width="444" height="3.5" rx="1.75" fill="#FFF3B0" opacity="0.32"/>
+  <rect x="172" y="558" width="444" height="13" rx="6.5" fill="#0C0D11"/>
+  <rect x="172" y="558" width="444" height="3.5" rx="1.75" fill="#FFF3B0" opacity="0.32"/>
+
+  <!-- Destination board. -->
+  <!-- board:start -->
+  <!-- "MEDIA SHUTTLE" in Cascadia Mono 700, outlined by docs/logo/board.py. -->
+  <path d="M238.175390625 528.7783203125 238.73203125 523.4345703125H238.9546875L240.884375 511.65234375H243.6119140625L243.9087890625 516.328125H242.73984375L240.51328125 528.7783203125ZM229.7330078125 538.0V511.65234375H234.2974609375V538.0ZM237.09921875 528.7783203125 234.87265625 516.328125H233.7037109375L234.0005859375 511.65234375H236.728125L238.6578125 523.4345703125H238.80625L239.32578125 528.7783203125ZM243.3150390625 538.0V511.65234375H247.8794921875V538.0ZM256.1923828125 538.0V511.65234375H261.0908203125V538.0ZM256.1923828125 538.0V533.4912109375H274.2646484375V538.0ZM256.1923828125 527.0712890625V522.5439453125H270.9248046875V527.0712890625ZM256.1923828125 516.1611328125V511.65234375H274.2646484375V516.1611328125ZM286.3255859375 538.0V533.3056640625H288.38515625Q292.0033203125 533.3056640625 293.81240234375 531.23681640625Q295.621484375 529.16796875 295.621484375 525.197265625Q295.621484375 520.818359375 293.81240234375 518.5732421875Q292.0033203125 516.328125 288.38515625 516.328125H286.3998046875L285.9544921875 511.65234375H288.38515625Q300.7611328125 511.65234375 300.7611328125 525.197265625Q300.7611328125 538.0 288.38515625 538.0ZM281.6869140625 538.0V511.65234375H286.5853515625V538.0ZM313.93535156250005 538.0V511.65234375H318.83378906250005V538.0ZM308.07207031250005 538.0V533.583984375H324.73417968750005V538.0ZM308.07207031250005 516.0498046875V511.65234375H324.73417968750005V516.0498046875ZM331.65546875000007 538.0 339.26289062500007 511.65234375H345.27460937500007L352.88203125000007 538.0H347.59394531250007L342.43574218750007 518.0908203125H342.10175781250007L336.94355468750007 538.0ZM335.49628906250007 533.0087890625V528.4814453125H348.85566406250007V533.0087890625ZM393.0908203125001 538.37109375Q390.8457031250001 538.37109375 388.7304687500001 537.99072265625Q386.6152343750001 537.6103515625 384.9453125000001 536.923828125L385.6132812500001 531.9140625Q387.6542968750001 532.767578125 389.6674804687501 533.2314453125Q391.6806640625001 533.6953125 393.3876953125001 533.6953125Q395.3730468750001 533.6953125 396.4306640625001 532.990234375Q397.4882812500001 532.28515625 397.4882812500001 530.9677734375Q397.4882812500001 529.2421875 395.3173828125001 528.2216796875L391.5322265625001 526.384765625Q388.7304687500001 525.01171875 387.1904296875001 522.9892578125Q385.6503906250001 520.966796875 385.6503906250001 518.517578125Q385.6503906250001 515.06640625 387.9326171875001 513.173828125Q390.2148437500001 511.28125 394.3896484375001 511.28125Q396.8203125000001 511.28125 399.0004882812501 512.134765625Q401.1806640625001 512.98828125 402.8691406250001 514.6025390625L399.4921875000001 518.48046875Q398.2119140625001 517.255859375 396.9130859375001 516.59716796875Q395.6142578125001 515.9384765625 394.4082031250001 515.9384765625Q392.7753906250001 515.9384765625 391.8662109375001 516.63427734375Q390.9570312500001 517.330078125 390.9570312500001 518.6474609375Q390.9570312500001 519.51953125 391.5971679687501 520.298828125Q392.2373046875001 521.078125 393.4248046875001 521.708984375L396.9873046875001 523.5458984375Q399.7705078125001 524.9931640625 401.2827148437501 526.9228515625Q402.7949218750001 528.8525390625 402.7949218750001 531.060546875Q402.7949218750001 534.5673828125 400.2714843750001 536.46923828125Q397.7480468750001 538.37109375 393.0908203125001 538.37109375ZM423.81777343750014 538.0V511.65234375H428.71621093750014V538.0ZM411.01503906250014 538.0V511.65234375H415.91347656250014V538.0ZM411.79433593750014 527.1455078125V522.6181640625H428.02968750000014V527.1455078125ZM445.65428838315233 538.37109375Q436.88066406250016 538.37109375 436.88066406250016 529.5390625V511.65234375H441.77910156250016V529.5390625Q441.77910156250016 531.5986328125 442.73466796875016 532.6376953125Q443.69023437500016 533.6767578125 445.73853095332294 533.6767578125Q449.68339843750016 533.6767578125 449.68339843750016 529.5390625V511.65234375H454.58183593750016V529.5390625Q454.58183593750016 533.955078125 452.31146824048926 536.1630859375Q450.0411005434784 538.37109375 445.65428838315233 538.37109375ZM469.1476562500002 538.0V511.65234375H474.0460937500002V538.0ZM461.6330078125002 516.1611328125V511.65234375H481.5607421875002V516.1611328125ZM495.0132812500002 538.0V511.65234375H499.9117187500002V538.0ZM487.4986328125002 516.1611328125V511.65234375H507.4263671875002V516.1611328125ZM514.8486328125002 538.0V511.65234375H519.7470703125002V538.0ZM514.8486328125002 538.0V533.4912109375H532.9208984375002V538.0ZM540.7142578125003 538.0V511.65234375H545.6126953125003V538.0ZM540.7142578125003 538.0V533.4912109375H558.7865234375003V538.0ZM540.7142578125003 527.0712890625V522.5439453125H555.4466796875003V527.0712890625ZM540.7142578125003 516.1611328125V511.65234375H558.7865234375003V516.1611328125Z" fill="#0F1014"/>
+  <!-- board:end -->
+
+  <!-- The card's contacts, which are also the bus's grille. Seven fingers of three
+       one length. Each sits in its own channel, lit along the top
+       edge and dark along the bottom, so they read as pads recessed into the shell
+       rather than as bars painted on the front of it. -->
+  <rect x="838" y="452" width="86" height="154" rx="13" fill="#06070A"/>
+  <rect x="838" y="452" width="86" height="154" rx="13" fill="none" stroke="#454B55" stroke-width="2" opacity="0.65"/>
+  <rect x="840" y="454" width="82" height="7" rx="3.5" fill="#000" opacity="0.55"/>
+  <g>
+    <rect x="846" y="458" width="68" height="16" rx="4" fill="url(#gold)"/>
+    <rect x="846" y="458" width="68" height="3" rx="1.5" fill="#FFF0C0" opacity="0.65"/>
+    <rect x="846" y="480" width="68" height="16" rx="4" fill="url(#gold)"/>
+    <rect x="846" y="480" width="68" height="3" rx="1.5" fill="#FFF0C0" opacity="0.65"/>
+    <rect x="846" y="502" width="68" height="16" rx="4" fill="url(#gold)"/>
+    <rect x="846" y="502" width="68" height="3" rx="1.5" fill="#FFF0C0" opacity="0.65"/>
+    <rect x="846" y="524" width="68" height="16" rx="4" fill="url(#gold)"/>
+    <rect x="846" y="524" width="68" height="3" rx="1.5" fill="#FFF0C0" opacity="0.65"/>
+    <rect x="846" y="546" width="68" height="16" rx="4" fill="url(#gold)"/>
+    <rect x="846" y="546" width="68" height="3" rx="1.5" fill="#FFF0C0" opacity="0.65"/>
+    <rect x="846" y="568" width="68" height="16" rx="4" fill="url(#gold)"/>
+    <rect x="846" y="568" width="68" height="3" rx="1.5" fill="#FFF0C0" opacity="0.65"/>
+    <rect x="846" y="590" width="68" height="16" rx="4" fill="url(#gold)"/>
+    <rect x="846" y="590" width="68" height="3" rx="1.5" fill="#FFF0C0" opacity="0.65"/>
+  </g>
+
+
+  <!-- Wheels. -->
+  <g>
+    <g clip-path="url(#cardClip)"><circle cx="280" cy="676" r="112" fill="url(#arch)"/></g>
+    <circle cx="280" cy="676" r="84" fill="url(#tyre)"/>
+    <!-- Tread: a dashed ring just inside the sidewall. The dash length divides
+         the circumference evenly, so there is no seam where it closes. -->
+    <circle cx="280" cy="676" r="78" fill="none" stroke="#000" stroke-width="11"
+            stroke-dasharray="13.02 18.01" opacity="0.5"/>
+    <circle cx="280" cy="676" r="84" fill="none" stroke="#6C7481" stroke-width="2.5" opacity="0.35"/>
+    <circle cx="280" cy="676" r="66" fill="none" stroke="#000" stroke-width="6" opacity="0.45"/>
+    <circle cx="280" cy="676" r="50" fill="url(#rim)"/>
+    <circle cx="280" cy="676" r="50" fill="none" stroke="#5A616B" stroke-width="2.5" opacity="0.8"/>
+    <circle cx="280" cy="676" r="16" fill="#767D87"/>
+    <circle cx="280" cy="676" r="16" fill="none" stroke="#4E555F" stroke-width="2" opacity="0.8"/>
+    <g fill="#9299A2">
+      <circle cx="280" cy="645" r="6.5"/><circle cx="309" cy="666" r="6.5"/>
+      <circle cx="298" cy="701" r="6.5"/><circle cx="262" cy="701" r="6.5"/>
+      <circle cx="251" cy="666" r="6.5"/>
+    </g>
+    <path d="M280 606 A70 70 0 0 0 210 676" fill="none" stroke="#FFFFFF" stroke-width="8"
+          stroke-linecap="round" opacity="0.14"/>
+
+    <g clip-path="url(#cardClip)"><circle cx="778" cy="676" r="112" fill="url(#arch)"/></g>
+    <circle cx="778" cy="676" r="84" fill="url(#tyre)"/>
+    <!-- Tread: a dashed ring just inside the sidewall. The dash length divides
+         the circumference evenly, so there is no seam where it closes. -->
+    <circle cx="778" cy="676" r="78" fill="none" stroke="#000" stroke-width="11"
+            stroke-dasharray="13.02 18.01" opacity="0.5"/>
+    <circle cx="778" cy="676" r="84" fill="none" stroke="#6C7481" stroke-width="2.5" opacity="0.35"/>
+    <circle cx="778" cy="676" r="66" fill="none" stroke="#000" stroke-width="6" opacity="0.45"/>
+    <circle cx="778" cy="676" r="50" fill="url(#rim)"/>
+    <circle cx="778" cy="676" r="50" fill="none" stroke="#5A616B" stroke-width="2.5" opacity="0.8"/>
+    <circle cx="778" cy="676" r="16" fill="#767D87"/>
+    <circle cx="778" cy="676" r="16" fill="none" stroke="#4E555F" stroke-width="2" opacity="0.8"/>
+    <g fill="#9299A2">
+      <circle cx="778" cy="645" r="6.5"/><circle cx="807" cy="666" r="6.5"/>
+      <circle cx="796" cy="701" r="6.5"/><circle cx="760" cy="701" r="6.5"/>
+      <circle cx="749" cy="666" r="6.5"/>
+    </g>
+    <path d="M778 606 A70 70 0 0 0 708 676" fill="none" stroke="#FFFFFF" stroke-width="8"
+          stroke-linecap="round" opacity="0.14"/>
+  </g>
+</svg>
