@@ -271,6 +271,58 @@ class Store:
         return None
 
 
+def _folder_for(root: Path, item: Media, group_by_date: bool) -> Path:
+    folder = root / FOLDERS[item.kind]
+    if group_by_date:
+        folder /= datetime.fromtimestamp(item.mtime_ns / 1e9).strftime("%Y-%m-%d")
+    return folder
+
+
+def _existing_size(path: Path) -> int:
+    try:
+        if path.is_symlink() or not path.is_file():
+            return -1
+        return path.stat().st_size
+    except OSError:
+        return -1
+
+
+def _numbered(folder: Path, name: str, number: int) -> Path:
+    stem, suffix = Path(name).stem, Path(name).suffix
+    return folder / f"{stem} ({number}){suffix}"
+
+
+def _first_free_number(folder: Path, name: str) -> int:
+    number = 2
+    while True:
+        candidate = _numbered(folder, name, number)
+        if not (candidate.exists() or candidate.is_symlink()):
+            return number
+        number += 1
+
+
+def _existing_numbered_copy(folder: Path, item: Media, card: Card, cancelled: Callable[[], bool],
+                            source_hash: str | None) -> tuple[Path, str] | None:
+    number = 2
+    candidates = []
+    while True:
+        candidate = _numbered(folder, item.path.name, number)
+        if not (candidate.exists() or candidate.is_symlink()):
+            break
+        if _existing_size(candidate) == item.size:
+            candidates.append(candidate)
+        number += 1
+    if not candidates:
+        return None
+    if source_hash is None:
+        source_hash = _hash(item.path, cancelled)
+        _check_source(item, card)
+    for candidate in candidates:
+        if _hash(candidate, cancelled) == source_hash:
+            return candidate, source_hash
+    return None
+
+
 def transfer(card: Card, destination: Path, store: Store, group_by_date: bool = False,
              progress: Callable[[dict], None] | None = None, cancelled: Callable[[], bool] = lambda: False) -> tuple[dict, Path]:
     root = _safe_destination(destination, card)
@@ -279,8 +331,14 @@ def transfer(card: Card, destination: Path, store: Store, group_by_date: bool = 
     if not scan.media:
         raise ShuttleError("No supported photos or videos were found on this card.")
     total = sum(item.size for item in scan.media)
-    if shutil.disk_usage(root).free < total + RESERVE:
-        raise ShuttleError("Not enough free space. Keep the card size plus 1 GB available.")
+    # Count only what may have to be written. A same-size file already under its own name is almost
+    # always the copy an earlier run made, so counting it made "Transfer again" on a full card demand
+    # the whole card's size in free space a second time with nothing left to copy.
+    needed = sum(item.size for item in scan.media
+                 if _existing_size(_folder_for(root, item, group_by_date) / item.path.name) != item.size)
+    if shutil.disk_usage(root).free < needed + RESERVE:
+        raise ShuttleError("Not enough free space at the destination. Free up room for the new files "
+                           "plus 1 GB, or choose another destination.")
     session = {"id": uuid.uuid4().hex, "started_at": int(time.time()), "source": str(card.root),
                "volume_id": card.volume_id, "destination": str(root), "total_files": len(scan.media),
                "total_bytes": total, "copied": 0, "skipped": 0, "status": "In progress", "files": []}
@@ -290,9 +348,7 @@ def transfer(card: Card, destination: Path, store: Store, group_by_date: bool = 
         if cancelled():
             raise Cancelled("Transfer cancelled.")
         _check_source(item, card)
-        folder = root / FOLDERS[item.kind]
-        if group_by_date:
-            folder /= datetime.fromtimestamp(item.mtime_ns / 1e9).strftime("%Y-%m-%d")
+        folder = _folder_for(root, item, group_by_date)
         folder.mkdir(parents=True, exist_ok=True)
         if not _inside(folder.resolve(strict=True), root):
             raise ShuttleError("A destination folder points outside the selected destination.")
@@ -306,11 +362,14 @@ def transfer(card: Card, destination: Path, store: Store, group_by_date: bool = 
                 _check_source(item, card)
                 skipped = source_hash == _hash(target, cancelled)
             if not skipped:
-                stem, suffix = item.path.stem, item.path.suffix
-                number = 2
-                while target.exists() or target.is_symlink():
-                    target = folder / f"{stem} ({number}){suffix}"
-                    number += 1
+                # An earlier name collision was kept as "NAME (2).EXT". Look for this file among those
+                # before picking a new name; otherwise every repeat transfer wrote another copy.
+                existing = _existing_numbered_copy(folder, item, card, cancelled, source_hash)
+                if existing is not None:
+                    target, source_hash = existing
+                    skipped = True
+                else:
+                    target = _numbered(folder, item.path.name, _first_free_number(folder, item.path.name))
         if skipped:
             session["skipped"] += 1
             verified_hash = source_hash

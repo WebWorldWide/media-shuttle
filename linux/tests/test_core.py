@@ -50,6 +50,32 @@ class CoreSafetyTests(unittest.TestCase):
         self.assertEqual((target.parent / "IMAGE (2).JPG").read_bytes(), self.picture.read_bytes())
         self.assertEqual(collision["copied"], 1)
 
+    def test_repeat_transfer_reuses_earlier_collision_copy(self):
+        jpegs = self.destination / "Photos/JPEGs"
+        jpegs.mkdir(parents=True)
+        (jpegs / "IMAGE.JPG").write_bytes(b"other original")  # same size, different bytes
+        first, _ = core.transfer(self.card, self.destination, self.store)
+        self.assertEqual(first["copied"], 1)
+        self.assertEqual((jpegs / "IMAGE (2).JPG").read_bytes(), self.picture.read_bytes())
+
+        second, _ = core.transfer(self.card, self.destination, self.store)
+        self.assertEqual(second["copied"], 0)
+        self.assertEqual(second["skipped"], 1)
+        self.assertFalse((jpegs / "IMAGE (3).JPG").exists())
+        self.assertEqual(Path(second["files"][0]["destination"]).resolve(), (jpegs / "IMAGE (2).JPG").resolve())
+        self.assertTrue(core.erase_eligible(self.card, second) or not self.card.allows_erase)
+
+    def test_free_space_counts_only_files_still_to_copy(self):
+        core.transfer(self.card, self.destination, self.store)
+        tight = core.RESERVE + 1
+        with patch("media_shuttle.core.shutil.disk_usage") as usage:
+            usage.return_value = type("Usage", (), {"free": tight})()
+            session, _ = core.transfer(self.card, self.destination, self.store)
+            self.assertEqual(session["skipped"], 1)
+            (self.card_root / "DCIM" / "NEW.JPG").write_bytes(b"x" * 64)
+            with self.assertRaises(core.ShuttleError):
+                core.transfer(self.card, self.destination, self.store)
+
     def test_destination_inside_card_rejected(self):
         with self.assertRaises(core.ShuttleError):
             core.transfer(self.card, self.card_root / "DCIM", self.store)
