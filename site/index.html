@@ -192,20 +192,27 @@
   </footer>
 
   <script>
-    // Point the download buttons straight at the newest release's files. Without JavaScript, or if
-    // GitHub's API is unavailable, they keep linking to the latest release page.
-    fetch("https://api.github.com/repos/WebWorldWide/media-shuttle/releases/latest")
+    // Point each download button at the newest release that actually carries its file, since a
+    // release can ship for one platform before the others. Without JavaScript, or if GitHub's API
+    // is unavailable, the buttons keep linking to the latest release page.
+    fetch("https://api.github.com/repos/WebWorldWide/media-shuttle/releases?per_page=20")
       .then((response) => (response.ok ? response.json() : Promise.reject()))
-      .then((release) => {
-        const assets = release.assets || [];
-        const find = (suffix) => assets.find((asset) => asset.name.endsWith(suffix));
+      .then((releases) => {
+        const published = releases.filter((release) => !release.draft && !release.prerelease);
+        const newest = (suffix) => {
+          for (const release of published) {
+            const asset = (release.assets || []).find((candidate) => candidate.name.endsWith(suffix));
+            if (asset) return asset;
+          }
+          return null;
+        };
         document.querySelectorAll("[data-asset]").forEach((link) => {
-          const asset = find(link.dataset.asset);
+          const asset = newest(link.dataset.asset);
           if (asset) link.href = asset.browser_download_url;
         });
-        const dmg = find("macOS-universal.dmg");
+        const dmg = newest("macOS-universal.dmg");
         if (dmg) document.getElementById("primary-download").href = dmg.browser_download_url;
-        const version = (release.tag_name || "").replace(/^v/, "");
+        const version = ((published[0] && published[0].tag_name) || "").replace(/^v/, "");
         if (version) document.getElementById("version-pill").textContent = `VERSION ${version} · FREE · OPEN SOURCE`;
       })
       .catch(() => {});
