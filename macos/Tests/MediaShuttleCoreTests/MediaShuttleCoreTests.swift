@@ -468,6 +468,171 @@ final class MediaShuttleCoreTests: XCTestCase {
         }
     }
 
+    func testSettingsMissingNewerKeysKeepEverythingSaved() async throws {
+        // A settings file written before the Photos options existed.
+        try FileManager.default.createDirectory(at: stateRoot, withIntermediateDirectories: true)
+        let legacy = """
+        {
+          "appearance" : "Light",
+          "autoTransfer" : true,
+          "destinationPath" : "\(destinationRoot.path)",
+          "groupByDate" : true,
+          "showActivityLog" : false,
+          "showNotifications" : false
+        }
+        """
+        let store = try StateStore(rootURL: stateRoot)
+        try Data(legacy.utf8).write(to: await store.settingsURL)
+        let loaded = await store.loadSettings()
+        XCTAssertEqual(loaded.destinationPath, destinationRoot.path, "The saved destination survives an upgrade")
+        XCTAssertTrue(loaded.autoTransfer)
+        XCTAssertTrue(loaded.groupByDate)
+        XCTAssertFalse(loaded.showActivityLog)
+        XCTAssertFalse(loaded.showNotifications)
+        XCTAssertEqual(loaded.appearance, "Light")
+        XCTAssertFalse(loaded.addToPhotosAfterTransfer)
+        XCTAssertTrue(loaded.photosIncludeRaw)
+        XCTAssertTrue(loaded.photosIncludeVideos)
+
+        var updated = loaded
+        updated.addToPhotosAfterTransfer = true
+        updated.photosIncludeVideos = false
+        try await store.saveSettings(updated)
+        let reloaded = await store.loadSettings()
+        XCTAssertEqual(reloaded, updated)
+    }
+
+    func testRepeatTransferReusesEarlierCollisionCopies() async throws {
+        let sameSize = cardRoot.appendingPathComponent("DCIM/100MSDCF/DSC00001.JPG")
+        let otherSize = cardRoot.appendingPathComponent("DCIM/100MSDCF/DSC00002.JPG")
+        try write("card-one", to: sameSize)
+        try write("card-two-is-longer", to: otherSize)
+        // Different files already at the destination under the same names.
+        let jpegs = destinationRoot.appendingPathComponent("Photos/JPEGs", isDirectory: true)
+        try write("desk-one", to: jpegs.appendingPathComponent("DSC00001.JPG"))
+        try write("short", to: jpegs.appendingPathComponent("DSC00002.JPG"))
+
+        let store = try StateStore(rootURL: stateRoot)
+        let logger = try AppLogger(stateRoot: stateRoot)
+        let transfer = TransferService(stateStore: store, logger: logger)
+        let card = CardInfo(
+            rootURL: cardRoot,
+            volumeLabel: "TEST CARD",
+            volumeID: "test-volume",
+            totalBytes: 64 * 1_024 * 1_024,
+            freeBytes: 32 * 1_024 * 1_024,
+            driveType: "Removable media"
+        )
+
+        let first = try await transfer.transfer(card: card, destinationRoot: destinationRoot, groupByDate: false)
+        XCTAssertEqual(first.session.copiedCount, 2)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: jpegs.appendingPathComponent("DSC00001 (2).JPG").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: jpegs.appendingPathComponent("DSC00002 (2).JPG").path))
+
+        let second = try await transfer.transfer(card: card, destinationRoot: destinationRoot, groupByDate: false)
+        XCTAssertEqual(second.session.copiedCount, 0, "Both files were already safe under their (2) names")
+        XCTAssertEqual(second.session.skippedCount, 2)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: jpegs.appendingPathComponent("DSC00001 (3).JPG").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: jpegs.appendingPathComponent("DSC00002 (3).JPG").path))
+        XCTAssertEqual(
+            Set(second.session.files.map(\.destinationURL.lastPathComponent)),
+            ["DSC00001 (2).JPG", "DSC00002 (2).JPG"]
+        )
+        XCTAssertTrue(second.session.isEligibleForErase(card: card, media: try MediaClassifier.scan(cardRoot)))
+    }
+
+    func testPhotosPlanPairsRawWithJpegAndSkipsWhatPhotosCannotTake() throws {
+        let folder = cardRoot.appendingPathComponent("DCIM/100MSDCF", isDirectory: true)
+        func record(_ name: String, _ kind: MediaKind, _ hash: String, destination: String? = nil) -> TransferRecord {
+            TransferRecord(
+                sourceURL: folder.appendingPathComponent(name),
+                destinationURL: destinationRoot.appendingPathComponent(destination ?? name),
+                sha256: hash,
+                size: 10,
+                kind: kind
+            )
+        }
+        let records = [
+            record("DSC00001.JPG", .jpeg, "a1"),
+            record("DSC00001.ARW", .raw, "a2"),
+            record("DSC00002.ARW", .raw, "b1"),
+            record("DSC00003.JPG", .jpeg, "c1", destination: "DSC00003 (2).JPG"),
+            record("C0001.MP4", .video, "d1"),
+            record("A001.BRAW", .video, "e1"),
+            record("00001.MTS", .video, "e2"),
+            record("PSD0001.PSD", .otherPhoto, "f1"),
+            record("COPY.JPG", .jpeg, "C1"),
+            record("GONE.JPG", .jpeg, "g1"),
+            record("OLD.JPG", .jpeg, "h1")
+        ]
+        let missing = destinationRoot.appendingPathComponent("GONE.JPG")
+        let plan = PhotosImportPlanner.plan(
+            records: records,
+            includeRaw: true,
+            includeVideos: true,
+            alreadyImported: ["H1"],
+            fileExists: { $0 != missing }
+        )
+
+        XCTAssertEqual(plan.items.count, 4)
+        let pair = try XCTUnwrap(plan.items.first { $0.primaryURL.lastPathComponent == "DSC00001.JPG" })
+        XCTAssertEqual(pair.pairedRawURL?.lastPathComponent, "DSC00001.ARW")
+        XCTAssertEqual(pair.hashes, ["A1", "A2"])
+        let lonelyRaw = try XCTUnwrap(plan.items.first { $0.primaryURL.lastPathComponent == "DSC00002.ARW" })
+        XCTAssertNil(lonelyRaw.pairedRawURL)
+        XCTAssertTrue(plan.items.contains { $0.primaryURL.lastPathComponent == "DSC00003 (2).JPG" })
+        XCTAssertEqual(plan.items.first { $0.kind == .video }?.primaryURL.lastPathComponent, "C0001.MP4")
+        XCTAssertEqual(
+            Set(plan.unsupported.map(\.lastPathComponent)),
+            ["A001.BRAW", "00001.MTS", "PSD0001.PSD"]
+        )
+        XCTAssertEqual(plan.missing.map(\.lastPathComponent), ["GONE.JPG"])
+        XCTAssertEqual(plan.alreadyInPhotos, 1)
+        XCTAssertEqual(plan.fileCount, 5)
+
+        let noRawNoVideo = PhotosImportPlanner.plan(
+            records: records,
+            includeRaw: false,
+            includeVideos: false,
+            alreadyImported: ["H1"],
+            fileExists: { $0 != missing }
+        )
+        XCTAssertEqual(
+            noRawNoVideo.items.map(\.primaryURL.lastPathComponent).sorted(),
+            ["DSC00001.JPG", "DSC00003 (2).JPG"]
+        )
+        XCTAssertNil(noRawNoVideo.items.first?.pairedRawURL)
+        XCTAssertEqual(noRawNoVideo.excludedBySettings, 5, "Two RAWs and three videos")
+    }
+
+    func testPhotosLedgerAndLatestCompletedSessionPersist() async throws {
+        let store = try StateStore(rootURL: stateRoot)
+        let initial = await store.photosImportedHashes()
+        XCTAssertTrue(initial.isEmpty)
+        try await store.recordPhotosImported(["ab12", "CD34"])
+        try await store.recordPhotosImported(["AB12", "ef56"])
+        let hashes = await store.photosImportedHashes()
+        XCTAssertEqual(hashes, ["AB12", "CD34", "EF56"])
+
+        let none = await store.latestCompletedSession()
+        XCTAssertNil(none)
+        let jpeg = cardRoot.appendingPathComponent("DCIM/100MSDCF/DSC00001.JPG")
+        try write("jpeg", to: jpeg)
+        let logger = try AppLogger(stateRoot: stateRoot)
+        let card = CardInfo(
+            rootURL: cardRoot,
+            volumeLabel: "TEST CARD",
+            volumeID: "test-volume",
+            totalBytes: 64 * 1_024 * 1_024,
+            freeBytes: 32 * 1_024 * 1_024,
+            driveType: "Removable media"
+        )
+        let result = try await TransferService(stateStore: store, logger: logger)
+            .transfer(card: card, destinationRoot: destinationRoot, groupByDate: false)
+        let latest = await store.latestCompletedSession()
+        XCTAssertEqual(latest?.sessionID, result.session.sessionID)
+    }
+
     private func write(_ string: String, to url: URL) throws {
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(),

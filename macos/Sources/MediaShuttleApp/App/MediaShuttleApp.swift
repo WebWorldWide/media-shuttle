@@ -80,7 +80,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.setActivationPolicy(.regular)
         }
         NSApp.activate(ignoringOtherApps: true)
-        NSApp.windows.first { $0.canBecomeMain }?.makeKeyAndOrderFront(nil)
+        // With Settings open, "the first window that can become main" was often the Settings
+        // window, so Open Media Shuttle raised Settings and left the main window behind it.
+        let main = NSApp.windows.first { $0.identifier?.rawValue.hasPrefix("main") == true && $0.canBecomeMain }
+            ?? NSApp.windows.first { $0.canBecomeMain && $0.title == "Media Shuttle" }
+        main?.makeKeyAndOrderFront(nil)
     }
 }
 
@@ -120,11 +124,22 @@ struct MediaShuttleApp: App {
                     .keyboardShortcut("t", modifiers: [.command])
                     .disabled(model.isDestinationAvailable ? !model.canTransfer : model.isBusy)
 
+                Button("Add to Apple Photos") { model.addToPhotos() }
+                    .keyboardShortcut("p", modifiers: [.command, .shift])
+                    .disabled(!model.canAddToPhotos)
+
+                Button("Eject Card") { model.ejectCard() }
+                    .keyboardShortcut("e", modifiers: [.command])
+                    .disabled(!model.canEject)
+
                 Divider()
 
                 Button("Open Destination") { model.openDestination() }
                     .keyboardShortcut("o", modifiers: [.command, .shift])
                     .disabled(!model.isDestinationAvailable)
+
+                Button("Show Transfer Report") { model.openReport() }
+                    .disabled(model.reportURL == nil)
             }
         }
 
@@ -135,9 +150,10 @@ struct MediaShuttleApp: App {
 
         MenuBarExtra {
             MenuBarView(model: model)
+                .preferredColorScheme(model.appearance)
         } label: {
-            AppMark.menuBarGlyph
+            MenuBarLabel(model: model)
         }
-        .menuBarExtraStyle(.menu)
+        .menuBarExtraStyle(.window)
     }
 }

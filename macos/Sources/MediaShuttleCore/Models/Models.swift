@@ -275,8 +275,41 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var destinationPath = ""
     /// The interface is designed dark; System and Light remain available in Settings.
     public var appearance = "Dark"
+    /// Hands every verified transfer to Apple Photos once it finishes, so it reaches iCloud Photos.
+    public var addToPhotosAfterTransfer = false
+    /// RAW files are added as the RAW half of a RAW+JPEG pair, or on their own when no JPEG exists.
+    public var photosIncludeRaw = true
+    public var photosIncludeVideos = true
 
     public init() {}
+
+    private enum CodingKeys: String, CodingKey {
+        case autoTransfer, groupByDate, showNotifications, showActivityLog, destinationPath, appearance
+        case addToPhotosAfterTransfer, photosIncludeRaw, photosIncludeVideos
+    }
+
+    /// Every key is optional. The synthesized decoder rejected the whole file whenever it lacked a
+    /// key, so the first launch of a build that adds a setting threw away every saved one — the
+    /// destination included, which then fell back to ~/Desktop/Camera and was recreated there.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = AppSettings()
+        autoTransfer = try container.decodeIfPresent(Bool.self, forKey: .autoTransfer) ?? defaults.autoTransfer
+        groupByDate = try container.decodeIfPresent(Bool.self, forKey: .groupByDate) ?? defaults.groupByDate
+        showNotifications = try container.decodeIfPresent(Bool.self, forKey: .showNotifications)
+            ?? defaults.showNotifications
+        showActivityLog = try container.decodeIfPresent(Bool.self, forKey: .showActivityLog)
+            ?? defaults.showActivityLog
+        destinationPath = try container.decodeIfPresent(String.self, forKey: .destinationPath)
+            ?? defaults.destinationPath
+        appearance = try container.decodeIfPresent(String.self, forKey: .appearance) ?? defaults.appearance
+        addToPhotosAfterTransfer = try container.decodeIfPresent(Bool.self, forKey: .addToPhotosAfterTransfer)
+            ?? defaults.addToPhotosAfterTransfer
+        photosIncludeRaw = try container.decodeIfPresent(Bool.self, forKey: .photosIncludeRaw)
+            ?? defaults.photosIncludeRaw
+        photosIncludeVideos = try container.decodeIfPresent(Bool.self, forKey: .photosIncludeVideos)
+            ?? defaults.photosIncludeVideos
+    }
 }
 
 public enum MediaShuttleError: LocalizedError, Equatable {
@@ -294,7 +327,7 @@ public enum MediaShuttleError: LocalizedError, Equatable {
         case .noSupportedMedia:
             "No supported photos or videos were found on this card."
         case .insufficientSpace:
-            "Not enough free space. Keep at least the card size plus 1 GB available."
+            "Not enough free space at the destination. Free up room for the new files plus 1 GB, or choose another destination."
         case .destinationUnavailable:
             "The destination folder is unavailable. Choose another folder and try again."
         case .eraseLocked:

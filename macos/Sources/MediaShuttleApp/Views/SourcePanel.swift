@@ -14,12 +14,20 @@ struct SourcePanel: View {
                 .disabled(model.isBusy)
                 .accessibilityLabel("Open camera card folder")
                 .padding(.top, 16)
-            if model.selectedSourceURL != nil {
-                Button("Use auto-detect", action: model.useAutomaticSource)
-                    .buttonStyle(ShuttleButtonStyle(kind: .secondary, fullWidth: true))
-                    .disabled(model.isBusy)
-                    .padding(.top, 8)
+            HStack(spacing: 5) {
+                if model.selectedSourceURL != nil {
+                    Button("Use auto-detect", action: model.useAutomaticSource)
+                        .buttonStyle(ShuttleButtonStyle(kind: .secondary, fullWidth: true))
+                        .disabled(model.isBusy)
+                }
+                if model.currentCardIsEjectable {
+                    Button("Eject", action: model.ejectCard)
+                        .buttonStyle(ShuttleButtonStyle(kind: .secondary, fullWidth: true))
+                        .disabled(!model.canEject)
+                        .help("Unmount and eject the card so it is safe to remove")
+                }
             }
+            .padding(.top, model.selectedSourceURL != nil || model.currentCardIsEjectable ? 8 : 0)
 
             Hairline().padding(.vertical, 16)
 

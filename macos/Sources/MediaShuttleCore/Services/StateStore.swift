@@ -88,6 +88,51 @@ public actor StateStore {
         return nil
     }
 
+    /// The newest transfer that finished verifying, whether or not its card has since been erased or
+    /// removed. Its destination copies are what "Add to Photos" works from after a relaunch.
+    public func latestCompletedSession() -> TransferSession? {
+        let keys: Set<URLResourceKey> = [.contentModificationDateKey]
+        let files = ((try? FileManager.default.contentsOfDirectory(
+            at: sessionsURL,
+            includingPropertiesForKeys: Array(keys),
+            options: [.skipsHiddenFiles]
+        )) ?? [])
+            .filter { $0.pathExtension.lowercased() == "json" }
+            .sorted {
+                let left = (try? $0.resourceValues(forKeys: keys).contentModificationDate) ?? .distantPast
+                let right = (try? $1.resourceValues(forKeys: keys).contentModificationDate) ?? .distantPast
+                return left > right
+            }
+        for file in files {
+            guard let data = try? Data(contentsOf: file),
+                  let session = try? decoder.decode(TransferSession.self, from: data),
+                  !session.files.isEmpty,
+                  session.completedAt != nil else { continue }
+            return session
+        }
+        return nil
+    }
+
+    private var photosLedgerURL: URL {
+        rootURL.appendingPathComponent("photos-imported.json")
+    }
+
+    /// SHA-256 of every file already handed to Apple Photos. PhotoKit does not deduplicate, so
+    /// without this a second "Add to Photos" of the same transfer doubled every asset in the
+    /// library — and in iCloud Photos on every device signed in to it.
+    public func photosImportedHashes() -> Set<String> {
+        guard let data = try? Data(contentsOf: photosLedgerURL),
+              let hashes = try? decoder.decode([String].self, from: data) else { return [] }
+        return Set(hashes.map { $0.uppercased() })
+    }
+
+    public func recordPhotosImported<S: Sequence>(_ hashes: S) throws where S.Element == String {
+        var all = photosImportedHashes()
+        all.formUnion(hashes.map { $0.uppercased() })
+        let data = try encoder.encode(all.sorted())
+        try data.write(to: photosLedgerURL, options: .atomic)
+    }
+
     private static func sameRoot(_ lhs: URL, _ rhs: URL) -> Bool {
         lhs.standardizedFileURL.path == rhs.standardizedFileURL.path
     }

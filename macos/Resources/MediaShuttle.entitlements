@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- The hardened runtime, which notarization requires, denies Photos access to any app
+         that does not declare it here, whatever the user answers in the TCC prompt. Add to
+         Photos needs it; nothing else in the app touches a protected resource. -->
+    <key>com.apple.security.personal-information.photos-library</key>
+    <true/>
+</dict>
+</plist>

@@ -34,6 +34,15 @@ struct ActivityEntry: Identifiable, Sendable {
     let message: String
 }
 
+struct PhotosImportProgress: Equatable, Sendable {
+    var completed: Int
+    var total: Int
+
+    var fraction: Double {
+        total > 0 ? min(1, Double(completed) / Double(total)) : 0
+    }
+}
+
 @MainActor
 @Observable
 final class AppModel {
@@ -65,6 +74,15 @@ final class AppModel {
     var operationEndedAt: Date?
     var isStarted = false
     var startupEnabled = SMAppService.mainApp.status == .enabled
+    /// The newest verified transfer, kept after its card is erased or removed so its destination
+    /// copies can still be added to Photos.
+    var lastCompletedSession: TransferSession?
+    /// Non-nil while an Add to Photos is running.
+    var photosProgress: PhotosImportProgress?
+    private(set) var currentCardIsEjectable = false
+    /// Set from the menu bar, which cannot present the typed erase confirmation itself; the main
+    /// window observes it and opens the sheet.
+    var eraseRequested = false
 
     @ObservationIgnored private let stateStore: StateStore
     @ObservationIgnored private let logger: AppLogger
@@ -75,6 +93,7 @@ final class AppModel {
     @ObservationIgnored private var presenceTracker = CardPresenceTracker()
     @ObservationIgnored private var lastScanSignature: String?
     @ObservationIgnored private var lastProgressAppliedAt: Date?
+    @ObservationIgnored private var photosTask: Task<Void, Never>?
 
     init() {
         let applicationSupport = (try? StateStore.defaultRootURL())
@@ -102,7 +121,17 @@ final class AppModel {
     deinit {
         scanTask?.cancel()
         operationTask?.cancel()
+        photosTask?.cancel()
     }
+
+    var isAddingToPhotos: Bool { photosProgress != nil }
+
+    /// What Add to Photos works from: the connected card's verified transfer, else the newest one.
+    var photosSession: TransferSession? { verifiedSession ?? lastCompletedSession }
+
+    var canAddToPhotos: Bool { !isAddingToPhotos && photosSession != nil }
+
+    var canEject: Bool { !isBusy && currentCard != nil && currentCardIsEjectable }
 
     var appearance: ColorScheme? {
         switch settings.appearance {
@@ -157,6 +186,7 @@ final class AppModel {
             destinationURL = URL(fileURLWithPath: settings.destinationPath, isDirectory: true).standardizedFileURL
         }
         prepareDestination(createIfMissing: settings.destinationPath.isEmpty)
+        lastCompletedSession = await stateStore.latestCompletedSession()
         addActivity("Watcher ready. Mounted-volume identity checks active.")
         await scanCards()
 
@@ -205,6 +235,7 @@ final class AppModel {
         guard let card = selected else {
             if currentCard != nil || forceUpdate {
                 currentCard = nil
+                currentCardIsEjectable = false
                 media = []
                 unverifiableFileCount = 0
                 lastScanSignature = nil
@@ -247,6 +278,9 @@ final class AppModel {
             $0.isEligibleForErase(card: card, media: scanned) ? $0 : nil
         }
         let sessionWasInvalidated = verifiedSession != nil && session == nil
+        if currentCard?.rootURL != card.rootURL {
+            currentCardIsEjectable = CardDetector.isEjectableVolumeRoot(card.rootURL)
+        }
         currentCard = card
         if banner?.title == "Source unavailable" || banner?.title == "Source scan failed" {
             banner = nil
@@ -282,8 +316,18 @@ final class AppModel {
                     + "erase stays locked."
                 )
             }
-            if isNew, settings.autoTransfer, isDestinationAvailable, !scanned.isEmpty {
-                startTransfer()
+            if isNew, settings.autoTransfer, !scanned.isEmpty {
+                if isDestinationAvailable {
+                    startTransfer()
+                } else {
+                    // Unattended, this used to do nothing at all: no transfer, and nothing to say
+                    // why when the reader came back to a card they expected to find copied.
+                    addActivity("Automatic transfer skipped: the destination folder is unavailable.")
+                    await sendNotification(
+                        title: "Automatic transfer skipped",
+                        body: "\(card.volumeLabel) was not copied because the destination folder is unavailable."
+                    )
+                }
             }
         }
     }
@@ -337,6 +381,7 @@ final class AppModel {
                     }
                 )
                 verifiedSession = result.session
+                lastCompletedSession = result.session
                 reportURL = result.sessionFileURL
                 updateVerifiedState()
                 addActivity(
@@ -352,6 +397,9 @@ final class AppModel {
                     title: "Transfer verified",
                     body: "\(result.session.totalFiles) files match their destination copies."
                 )
+                if settings.addToPhotosAfterTransfer {
+                    addToPhotos(session: result.session)
+                }
             } catch is CancellationError {
                 progress = OperationProgress(
                     phase: .cancelled,
@@ -377,6 +425,9 @@ final class AppModel {
                 topStatus = "NEEDS ATTENTION"
                 statusTone = .error
                 addActivity("Transfer stopped: \(error.localizedDescription)")
+                // Automatic transfers run with the window closed, so a failure needs to reach the
+                // reader the same way a success does.
+                await sendNotification(title: "Transfer stopped", body: error.localizedDescription)
             }
             operationEndedAt = .now
             isBusy = false
@@ -521,6 +572,7 @@ final class AppModel {
 
     private func resetSourceState() {
         currentCard = nil
+        currentCardIsEjectable = false
         media = []
         unverifiableFileCount = 0
         verifiedSession = nil
@@ -603,6 +655,192 @@ final class AppModel {
 
     func dismissBanner() {
         banner = nil
+    }
+
+    // MARK: Apple Photos
+
+    func addToPhotos() {
+        guard let session = photosSession else {
+            banner = BannerMessage(
+                title: "Nothing to add to Photos",
+                message: "Transfer and verify a card first. Photos receives the verified destination copies.",
+                tone: .info
+            )
+            return
+        }
+        addToPhotos(session: session)
+    }
+
+    func cancelAddToPhotos() {
+        photosTask?.cancel()
+    }
+
+    private func addToPhotos(session: TransferSession) {
+        guard photosTask == nil else { return }
+        let includeRaw = settings.photosIncludeRaw
+        let includeVideos = settings.photosIncludeVideos
+        let records = session.files
+        let label = session.sourceLabel
+        photosProgress = PhotosImportProgress(completed: 0, total: 0)
+        addActivity("Adding \(label) to Apple Photos.")
+
+        photosTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                photosProgress = nil
+                photosTask = nil
+            }
+            do {
+                try await PhotosImporter.requestAccess()
+            } catch {
+                showError("Photos access needed", error.localizedDescription)
+                addActivity("Add to Photos stopped: \(error.localizedDescription)")
+                return
+            }
+
+            let already = await stateStore.photosImportedHashes()
+            let plan = await Task.detached(priority: .utility) {
+                PhotosImportPlanner.plan(
+                    records: records,
+                    includeRaw: includeRaw,
+                    includeVideos: includeVideos,
+                    alreadyImported: already
+                )
+            }.value
+
+            guard !plan.items.isEmpty else {
+                let message = Self.photosSummary(plan: plan, outcome: nil)
+                banner = BannerMessage(title: "Nothing new to add to Photos", message: message, tone: .info)
+                addActivity("Add to Photos: nothing new. \(message)")
+                return
+            }
+
+            let total = plan.items.count
+            photosProgress = PhotosImportProgress(completed: 0, total: total)
+            let store = stateStore
+            let outcome = await PhotosImporter.add(plan.items) { [weak self] completed, hashes in
+                self?.photosProgress = PhotosImportProgress(completed: completed, total: total)
+                guard !hashes.isEmpty else { return }
+                try? await store.recordPhotosImported(hashes)
+            }
+
+            let message = Self.photosSummary(plan: plan, outcome: outcome)
+            let cancelled = Task.isCancelled
+            let title: String
+            let tone: BannerTone
+            if cancelled {
+                title = "Add to Photos cancelled"
+                tone = .warning
+            } else if !outcome.failures.isEmpty {
+                title = outcome.addedItems > 0 ? "Added to Photos with problems" : "Photos did not accept these files"
+                tone = outcome.addedItems > 0 ? .warning : .error
+            } else {
+                title = "Added to Photos"
+                tone = .success
+            }
+            banner = BannerMessage(title: title, message: message, tone: tone)
+            addActivity("\(title). \(message)")
+            for failure in outcome.failures.prefix(5) {
+                addActivity("Photos refused \(failure.name): \(failure.reason)")
+            }
+            if !cancelled {
+                await sendNotification(title: title, body: message)
+            }
+        }
+    }
+
+    private static func photosSummary(plan: PhotosImportPlan, outcome: PhotosImporter.Outcome?) -> String {
+        var parts: [String] = []
+        if let outcome {
+            let items = outcome.addedItems
+            var added = "\(items) \(items == 1 ? "item" : "items") added"
+            if outcome.addedFiles > items { added += " (\(outcome.addedFiles) files, RAW+JPEG paired)" }
+            parts.append(added)
+            if !outcome.failures.isEmpty { parts.append("\(outcome.failures.count) refused by Photos") }
+        }
+        if plan.alreadyInPhotos > 0 { parts.append("\(plan.alreadyInPhotos) already in Photos") }
+        if !plan.unsupported.isEmpty {
+            let formats = Set(plan.unsupported.map { $0.pathExtension.uppercased() }).sorted().joined(separator: ", ")
+            parts.append("\(plan.unsupported.count) in formats Photos can't take (\(formats))")
+        }
+        if plan.excludedBySettings > 0 { parts.append("\(plan.excludedBySettings) skipped by your Photos settings") }
+        if !plan.missing.isEmpty { parts.append("\(plan.missing.count) no longer at the destination") }
+        return parts.isEmpty ? "No photos or videos in this transfer." : parts.joined(separator: " · ") + "."
+    }
+
+    func openPhotosApp() {
+        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Photos") {
+            NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+        }
+    }
+
+    func openPhotosPrivacySettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Photos") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    // MARK: Card
+
+    func ejectCard() {
+        guard canEject, let card = currentCard else { return }
+        let root = card.rootURL
+        let label = card.volumeLabel
+        addActivity("Ejecting \(label).")
+        Task {
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    try NSWorkspace.shared.unmountAndEjectDevice(at: root)
+                }.value
+                if let selectedSourceURL, selectedSourceURL.standardizedFileURL == root.standardizedFileURL {
+                    self.selectedSourceURL = nil
+                    sourceAllowsErase = true
+                }
+                resetSourceState()
+                banner = BannerMessage(
+                    title: "\(label) ejected",
+                    message: "It is safe to remove the card.",
+                    tone: .success
+                )
+                addActivity("Ejected \(label). Safe to remove.")
+            } catch {
+                showError(
+                    "\(label) could not be ejected",
+                    "Close any app or Finder window using the card and try again. " + error.localizedDescription
+                )
+            }
+            await scanCards(forceUpdate: true)
+        }
+    }
+
+    /// The typed confirmation lives in the main window; this asks it to open.
+    func requestErase() {
+        guard canWipe else { return }
+        eraseRequested = true
+    }
+
+    func setAutoTransfer(_ enabled: Bool) {
+        settings.autoTransfer = enabled
+        saveSettings()
+    }
+
+    func setAddToPhotosAfterTransfer(_ enabled: Bool) {
+        settings.addToPhotosAfterTransfer = enabled
+        saveSettings()
+        if enabled { preparePhotosAccess() }
+    }
+
+    /// Asks for Photos access when automatic adding is switched on, while the reader is here to
+    /// answer. Left to the first automatic import, the prompt would wait, unseen, behind a transfer
+    /// that ran with nobody at the Mac.
+    func preparePhotosAccess() {
+        Task {
+            do {
+                try await PhotosImporter.requestAccess()
+            } catch {
+                showError("Photos access needed", error.localizedDescription)
+            }
+        }
     }
 
     /// Create the default destination once. A missing saved destination stays unavailable until the

@@ -41,6 +41,21 @@ public enum CardDetector {
         }
     }
 
+    /// True for the root of a mounted volume macOS can eject: a card or other external disk, never
+    /// the startup disk or a folder inside a volume.
+    public static func isEjectableVolumeRoot(_ url: URL) -> Bool {
+        let root = url.standardizedFileURL.resolvingSymlinksInPath()
+        guard root.path != "/",
+              let values = try? root.resourceValues(forKeys: [
+                  .volumeURLKey, .volumeIsInternalKey, .volumeIsEjectableKey, .volumeIsRemovableKey
+              ]),
+              values.volume?.standardizedFileURL.resolvingSymlinksInPath() == root else {
+            return false
+        }
+        return values.volumeIsEjectable == true || values.volumeIsRemovable == true
+            || values.volumeIsInternal == false
+    }
+
     public static func candidates(destinationRoot: URL) -> [CardInfo] {
         let keys: [URLResourceKey] = [
             .volumeNameKey, .volumeUUIDStringKey, .volumeTotalCapacityKey,

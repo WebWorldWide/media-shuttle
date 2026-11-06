@@ -183,6 +183,18 @@ private struct SessionPanel: View {
                 .truncationMode(.middle)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
+            if let photos = model.photosProgress {
+                Button(photos.total > 0 ? "Stop Photos · \(photos.completed)/\(photos.total)" : "Opening Photos…",
+                       action: model.cancelAddToPhotos)
+                    .buttonStyle(ShuttleButtonStyle(kind: .secondary))
+                    .help("Stop adding to Apple Photos. Items already added stay in the library.")
+            } else {
+                Button("Add to Photos", action: model.addToPhotos)
+                    .buttonStyle(ShuttleButtonStyle(kind: .secondary))
+                    .disabled(!model.canAddToPhotos)
+                    .help("Add the verified copies to Apple Photos, which syncs them through iCloud Photos.")
+            }
+
             Button("Report", action: model.openReport)
                 .buttonStyle(ShuttleButtonStyle(kind: .secondary))
                 .disabled(model.reportURL == nil)

@@ -23,6 +23,8 @@ Media Shuttle sorts photos and videos into a predictable folder layout, checks e
 - Reuses identical files already at the destination and keeps different name collisions.
 - Watches for cards in the background, with optional automatic transfer and native notifications.
 - Opens a camera card folder manually when automatic detection misses it. Use the Source panel, Ctrl+O on Windows, or File → Open Camera Card Folder on macOS.
+- **macOS:** adds verified copies to Apple Photos with one click (Media → Add to Apple Photos, ⇧⌘P), or after every transfer automatically, so iCloud Photos syncs them to your other devices. RAW+JPEG pairs become one asset, files already added are never added twice, and formats Photos can't take (BRAW, R3D, MXF, AVCHD) stay in the destination folder.
+- **macOS:** the menu bar panel shows the connected card, live transfer progress, and recent activity. From it you can transfer, add to Photos, eject, open the destination or report, and switch automatic transfer on or off without opening the window.
 
 Erase is available only after a verified transfer. Before deleting, the app rescans the card and verifies every remaining file against its destination copy. Unknown files keep erase locked. Erasing removes user content; it does not format the card. Type `ERASE EVERYTHING` to confirm. Use the camera's Format command when you need a fresh filesystem.
 
@@ -34,7 +36,7 @@ Get the latest installer and portable build from [GitHub Releases](https://githu
 - **macOS:** open `MediaShuttle-v*-macOS-universal.dmg` and drag the app to Applications.
 - **Linux:** build from this source tree using the instructions below. A Linux release bundle is not published yet.
 
-Each release includes a platform-specific SHA-256 checksum file. Unsigned Windows builds may show SmartScreen; unsigned macOS community builds may require Control-click → **Open**.
+Each release includes a platform-specific SHA-256 checksum file. Unsigned Windows builds may show SmartScreen. Signed macOS releases are notarized by Apple and open normally; an ad-hoc community build may require Control-click → **Open**.
 
 ## Build
 
@@ -56,8 +58,21 @@ Requires Xcode 26 or later and Swift 6.
 ```bash
 swift run --package-path macos MediaShuttle
 swift test --package-path macos --scratch-path /tmp/media-shuttle-tests
-./macos/scripts/package-macos.sh 0.1.2
+./macos/scripts/package-macos.sh 0.2.0
 ```
+
+Without a signing identity, the package is ad-hoc signed. To produce a signed, notarized, and stapled DMG, store notary credentials once, then pass your Developer ID identity:
+
+```bash
+xcrun notarytool store-credentials media-shuttle-notary \
+    --apple-id you@example.com --team-id TEAMID   # prompts for an app-specific password
+
+CODE_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
+NOTARY_KEYCHAIN_PROFILE=media-shuttle-notary \
+./macos/scripts/package-macos.sh 0.2.0
+```
+
+An App Store Connect API key works as well: set `NOTARY_KEY_PATH`, `NOTARY_KEY_ID`, and `NOTARY_ISSUER` instead of the profile. Release CI reads the `MACOS_CODE_SIGN_IDENTITY` and `MACOS_NOTARY_KEYCHAIN_PROFILE` repository variables.
 
 ### Linux
 
@@ -80,7 +95,7 @@ GitHub Actions runs Windows, macOS, and Linux safety checks on pushes and pull r
 
 ## Privacy
 
-Settings, transfer records, and logs stay on the computer. Media Shuttle makes no network requests and collects no analytics.
+Settings, transfer records, and logs stay on the computer. Media Shuttle makes no network requests and collects no analytics. Add to Photos asks only for add-only access: the app can put new items in your library but can't read it. Any iCloud syncing after that is done by Photos.
 
 ## License
 

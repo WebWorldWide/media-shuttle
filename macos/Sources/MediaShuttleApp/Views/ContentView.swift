@@ -34,6 +34,10 @@ struct ContentView: View {
         .frame(minWidth: 1_020, minHeight: 620)
         .onAppear {
             AppDelegate.openMainWindow = { openWindow(id: "main") }
+            presentRequestedErase()
+        }
+        .onChange(of: model.eraseRequested) { _, _ in
+            presentRequestedErase()
         }
         .sheet(isPresented: $showingEraseConfirmation) {
             EraseConfirmationView(model: model) {
@@ -47,6 +51,15 @@ struct ContentView: View {
                 eraseTarget = nil
             }
         }
+    }
+
+    /// Erase asked for from the menu bar. The same capture-then-recheck as the erase button.
+    private func presentRequestedErase() {
+        guard model.eraseRequested else { return }
+        model.eraseRequested = false
+        guard !showingEraseConfirmation else { return }
+        eraseTarget = model.currentEraseTarget
+        showingEraseConfirmation = eraseTarget != nil
     }
 }
 

@@ -21,6 +21,26 @@ struct SettingsView: View {
                 Toggle("Show the activity log", isOn: $model.settings.showActivityLog)
             }
 
+            Section {
+                Toggle("Add to Apple Photos after each verified transfer", isOn: $model.settings.addToPhotosAfterTransfer)
+                Toggle("Include RAW files (paired with their JPEG when there is one)", isOn: $model.settings.photosIncludeRaw)
+                Toggle("Include videos", isOn: $model.settings.photosIncludeVideos)
+                HStack {
+                    Button("Open Photos", action: model.openPhotosApp)
+                    Button("Photos Privacy Settings…", action: model.openPhotosPrivacySettings)
+                }
+            } header: {
+                Text("Apple Photos")
+            } footer: {
+                Text(
+                    "Photos copies each file into its library, and iCloud Photos syncs it to your other "
+                        + "devices. Files already added are remembered and never added twice. BRAW, R3D, MXF "
+                        + "and AVCHD stay in the destination folder only."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+
             Section("System") {
                 Toggle("Launch Media Shuttle at login", isOn: Binding(
                     get: { model.startupEnabled },
@@ -33,9 +53,12 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .padding(8)
-        .frame(width: 520, height: 410)
+        .frame(width: 560, height: 600)
         .onChange(of: model.settings) { _, _ in
             model.saveSettings()
+        }
+        .onChange(of: model.settings.addToPhotosAfterTransfer) { _, enabled in
+            if enabled { model.preparePhotosAccess() }
         }
     }
 }

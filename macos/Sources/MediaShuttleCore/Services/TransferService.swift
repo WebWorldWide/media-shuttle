@@ -47,7 +47,10 @@ public actor TransferService {
         guard !media.isEmpty else { throw MediaShuttleError.noSupportedMedia }
 
         let totalBytes = media.reduce(Int64(0)) { $0 + $1.size }
-        try ensureFreeSpace(at: destinationRoot, requiredBytes: totalBytes)
+        try ensureFreeSpace(
+            at: destinationRoot,
+            requiredBytes: estimatedBytesToWrite(for: media, destinationRoot: destinationRoot, groupByDate: groupByDate)
+        )
         try ensureDestinationFolders(for: media, at: destinationRoot)
         var session = TransferSession(
             card: card,
@@ -98,7 +101,31 @@ public actor TransferService {
                     }
                 }
                 if !skipped {
-                    destinationURL = uniqueURL(in: folder, fileName: item.fileName)
+                    // A name collision from an earlier run was kept as "NAME (2).EXT". Look for this
+                    // file among those before picking a new name: otherwise every repeat transfer of
+                    // the card wrote yet another copy, (3), (4) and on, of a file already safe.
+                    let hashForSearch: String
+                    if let sourceHash {
+                        hashForSearch = sourceHash
+                    } else if hasNumberedVariant(in: folder, fileName: item.fileName, size: item.size) {
+                        hashForSearch = try await FileHasher.sha256(at: item.sourceURL)
+                        sourceHash = hashForSearch
+                    } else {
+                        hashForSearch = ""
+                    }
+                    if !hashForSearch.isEmpty, let existing = try await existingNumberedCopy(
+                        in: folder,
+                        fileName: item.fileName,
+                        size: item.size,
+                        sha256: hashForSearch
+                    ) {
+                        destinationURL = existing
+                        skipped = true
+                        session.skippedCount += 1
+                        await logger.write("Verified existing \(existing.lastPathComponent)")
+                    } else {
+                        destinationURL = uniqueURL(in: folder, fileName: item.fileName)
+                    }
                 }
             }
 
@@ -308,14 +335,67 @@ public actor TransferService {
     }
 
     private func uniqueURL(in directory: URL, fileName: String) -> URL {
+        var number = 2
+        while true {
+            let candidate = numberedURL(in: directory, fileName: fileName, number: number)
+            if !FileManager.default.fileExists(atPath: candidate.path) { return candidate }
+            number += 1
+        }
+    }
+
+    private func numberedURL(in directory: URL, fileName: String, number: Int) -> URL {
         let source = URL(fileURLWithPath: fileName)
         let stem = source.deletingPathExtension().lastPathComponent
         let suffix = source.pathExtension.isEmpty ? "" : ".\(source.pathExtension)"
+        return directory.appendingPathComponent("\(stem) (\(number))\(suffix)")
+    }
+
+    /// Cheap pre-check so a card with no earlier collisions never pays for an extra source hash.
+    private func hasNumberedVariant(in directory: URL, fileName: String, size: Int64) -> Bool {
         var number = 2
         while true {
-            let candidate = directory.appendingPathComponent("\(stem) (\(number))\(suffix)")
-            if !FileManager.default.fileExists(atPath: candidate.path) { return candidate }
+            let candidate = numberedURL(in: directory, fileName: fileName, number: number)
+            guard FileManager.default.fileExists(atPath: candidate.path) else { return false }
+            if Self.fileSize(at: candidate) == size { return true }
             number += 1
+        }
+    }
+
+    private func existingNumberedCopy(
+        in directory: URL,
+        fileName: String,
+        size: Int64,
+        sha256: String
+    ) async throws -> URL? {
+        var number = 2
+        while true {
+            let candidate = numberedURL(in: directory, fileName: fileName, number: number)
+            guard FileManager.default.fileExists(atPath: candidate.path) else { return nil }
+            if Self.fileSize(at: candidate) == size {
+                let candidateHash = try await FileHasher.sha256(at: candidate)
+                if candidateHash.caseInsensitiveCompare(sha256) == .orderedSame { return candidate }
+            }
+            number += 1
+        }
+    }
+
+    /// Bytes this transfer may actually have to write. A file already present under its own name at
+    /// the same size is almost always the copy a previous run made and is skipped after hashing, so
+    /// counting it made "Transfer again" on a full card demand the card's whole size in free space a
+    /// second time and fail with nothing left to copy. A same-size file that turns out to differ is
+    /// written under a new name; the reserve covers that, and the copy itself fails cleanly if not.
+    private func estimatedBytesToWrite(
+        for media: [MediaItem],
+        destinationRoot: URL,
+        groupByDate: Bool
+    ) -> Int64 {
+        media.reduce(Int64(0)) { total, item in
+            var folder = MediaClassifier.destinationFolder(for: item.kind, under: destinationRoot)
+            if groupByDate {
+                folder.appendPathComponent(Self.dateFolder(for: item.modifiedAt), isDirectory: true)
+            }
+            let existing = folder.appendingPathComponent(item.fileName)
+            return Self.fileSize(at: existing) == item.size ? total : total + item.size
         }
     }
 

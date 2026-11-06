@@ -45,6 +45,12 @@ jobs:
         run: swift test --package-path macos --scratch-path "$RUNNER_TEMP/media-shuttle-tests"
 
       - name: Build universal macOS app
+        # Set these repository variables to ship a signed, notarized build. The Mac runner's login
+        # keychain must hold the Developer ID identity and a profile saved with
+        # `xcrun notarytool store-credentials`. Unset, the build is ad-hoc signed as before.
+        env:
+          CODE_SIGN_IDENTITY: ${{ vars.MACOS_CODE_SIGN_IDENTITY || '-' }}
+          NOTARY_KEYCHAIN_PROFILE: ${{ vars.MACOS_NOTARY_KEYCHAIN_PROFILE }}
         run: |
           VERSION="${RELEASE_TAG#v}"
           ./macos/scripts/package-macos.sh "$VERSION"
