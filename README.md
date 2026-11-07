@@ -37,7 +37,7 @@ Needs Xcode 26 or later.
 ```bash
 swift run --package-path macos MediaShuttle
 swift test --package-path macos
-./macos/scripts/package-macos.sh 0.2.1
+./macos/scripts/package-macos.sh 0.2.5
 ```
 
 `package-macos.sh` makes an ad-hoc signed DMG by default. To sign and notarize, save notary credentials once and pass your Developer ID:
@@ -47,7 +47,7 @@ xcrun notarytool store-credentials media-shuttle-notary --apple-id you@example.c
 
 CODE_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
 NOTARY_KEYCHAIN_PROFILE=media-shuttle-notary \
-./macos/scripts/package-macos.sh 0.2.1
+./macos/scripts/package-macos.sh 0.2.5
 ```
 
 You can use an App Store Connect API key instead by setting `NOTARY_KEY_PATH`, `NOTARY_KEY_ID` and `NOTARY_ISSUER`.
