@@ -16,6 +16,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        MainActor.assumeIsolated { DemoFrames.runIfRequested() }
+        #endif
         let background = launchedInBackground
         NSAppleEventManager.shared().setEventHandler(
             self,

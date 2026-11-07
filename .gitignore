@@ -14,3 +14,5 @@ DerivedData/
 .serena/
 docs/logo/export/
 __pycache__/
+docs/video/build/
+.cloudflare/

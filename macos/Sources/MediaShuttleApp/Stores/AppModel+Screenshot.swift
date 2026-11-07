@@ -73,14 +73,14 @@ extension AppModel {
         topStatus = "LEXAR · TRANSFER VERIFIED"
         statusTone = .verified
         banner = BannerMessage(
-            title: "Transfer verified — 457 files safe in the destination",
-            message: "SHA-256 matched on every remaining camera file",
+            title: "Transfer verified",
+            message: "457 files copied and checked with SHA-256.",
             tone: .success
         )
         primaryActionTitle = "Transfer again"
         operationStartedAt = Date.now.addingTimeInterval(-122)
         activities = [
-            ActivityEntry(date: .now.addingTimeInterval(-3), message: "Verification complete — 457 files match by SHA-256."),
+            ActivityEntry(date: .now.addingTimeInterval(-3), message: "Verified 457 files: 442 copied, 15 already at the destination."),
             ActivityEntry(date: .now.addingTimeInterval(-122), message: "Transfer started from /Volumes/LEXAR.")
         ]
     }

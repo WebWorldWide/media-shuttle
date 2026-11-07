@@ -1,18 +1,54 @@
 {
   "fill": {
     "linear-gradient": [
-      "extended-srgb:0.92549,0.36078,0.30196,1.00000",
-      "extended-srgb:0.53333,0.12549,0.10196,1.00000"
+      "extended-srgb:0.95686,0.40000,0.33333,1.00000",
+      "extended-srgb:0.70980,0.14902,0.12549,1.00000"
     ]
   },
   "groups": [
     {
       "layers": [
         {
-          "image-name": "card.svg",
-          "name": "Shuttle"
+          "image-name": "wheels.svg",
+          "name": "Wheels",
+          "glass": true
+        },
+        {
+          "image-name": "glass.svg",
+          "name": "Windows",
+          "glass": true
         }
-      ]
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": true,
+        "value": 0.15
+      }
+    },
+    {
+      "layers": [
+        {
+          "image-name": "paint.svg",
+          "name": "Paint",
+          "glass": true
+        },
+        {
+          "image-name": "body.svg",
+          "name": "Body",
+          "glass": true
+        }
+      ],
+      "shadow": {
+        "kind": "layer-color",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      }
     }
   ],
   "supported-platforms": {

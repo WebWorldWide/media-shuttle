@@ -187,7 +187,7 @@ final class AppModel {
         }
         prepareDestination(createIfMissing: settings.destinationPath.isEmpty)
         lastCompletedSession = await stateStore.latestCompletedSession()
-        addActivity("Watcher ready. Mounted-volume identity checks active.")
+        addActivity("Watching for camera cards.")
         await scanCards()
 
         scanTask = Task { [weak self] in
@@ -312,8 +312,8 @@ final class AppModel {
             addActivity("Detected \(card.volumeLabel) at \(card.rootURL.path)")
             if unverifiableFileCount > 0 {
                 addActivity(
-                    "\(unverifiableFileCount) unrecognised file(s) on this card cannot be verified — "
-                    + "erase stays locked."
+                    "\(unverifiableFileCount) file(s) on this card aren't camera media, so they can't be "
+                    + "verified. Erase stays locked."
                 )
             }
             if isNew, settings.autoTransfer, !scanned.isEmpty {
@@ -385,17 +385,17 @@ final class AppModel {
                 reportURL = result.sessionFileURL
                 updateVerifiedState()
                 addActivity(
-                    "Verified \(result.session.totalFiles) files — \(result.session.copiedCount) copied, " +
-                    "\(result.session.skippedCount) already safe."
+                    "Verified \(result.session.totalFiles) files: \(result.session.copiedCount) copied, " +
+                    "\(result.session.skippedCount) already at the destination."
                 )
                 banner = BannerMessage(
                     title: "Transfer verified",
-                    message: "\(result.session.totalFiles) files are safe at the destination and match by SHA-256.",
+                    message: "\(result.session.totalFiles) files copied and checked with SHA-256.",
                     tone: .success
                 )
                 await sendNotification(
                     title: "Transfer verified",
-                    body: "\(result.session.totalFiles) files match their destination copies."
+                    body: "\(result.session.totalFiles) files copied and checked with SHA-256."
                 )
                 if settings.addToPhotosAfterTransfer {
                     addToPhotos(session: result.session)
@@ -488,7 +488,7 @@ final class AppModel {
         banner = nil
         topStatus = "ERASE ACTIVE"
         statusTone = .active
-        addActivity("Erase approved. Re-verifying card media before deletion.")
+        addActivity("Erasing. Checking every file against its copy first.")
 
         operationTask = Task { [weak self] in
             guard let self else { return }
@@ -506,15 +506,15 @@ final class AppModel {
                 primaryActionTitle = "No media found"
                 topStatus = "CARD EMPTY"
                 statusTone = .verified
-                addActivity("Erase complete. \(result.deletedFiles) files removed; post-erase scan empty.")
+                addActivity("Erased \(result.deletedFiles) files from the card.")
                 banner = BannerMessage(
-                    title: "Card contents erased",
-                    message: "\(result.deletedFiles) files were removed successfully.",
+                    title: "Card erased",
+                    message: "\(result.deletedFiles) files deleted from the card.",
                     tone: .success
                 )
                 await sendNotification(
-                    title: "Card contents erased",
-                    body: "\(result.deletedFiles) files removed successfully."
+                    title: "Card erased",
+                    body: "\(result.deletedFiles) files deleted from the card."
                 )
             } catch {
                 showError("Erase blocked", error.localizedDescription)
@@ -663,7 +663,7 @@ final class AppModel {
         guard let session = photosSession else {
             banner = BannerMessage(
                 title: "Nothing to add to Photos",
-                message: "Transfer and verify a card first. Photos receives the verified destination copies.",
+                message: "Transfer a card first. Photos gets the verified copies from the destination folder.",
                 tone: .info
             )
             return

@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1280, height=720" />
+    <!-- From the devrel-video skill's thumbnail template. renders/hero.png is a frame of capture.mp4. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=JetBrains+Mono:wght@600&display=block" rel="stylesheet" />
+    <style>
+      :root { --brand: #3a1513; --brand-deep: #0b0b0c; --highlight: #ff6a5e; --muted: #b9bec4; }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1280px; height: 720px; overflow: hidden; }
+      body { font-family: "Inter", system-ui, sans-serif; color: #fff;
+        background: radial-gradient(900px 560px at 26% 32%, var(--brand) 0%, var(--brand-deep) 70%); -webkit-font-smoothing: antialiased; }
+      .wrap { position: absolute; inset: 0; display: flex; align-items: center; gap: 46px; padding: 0 64px; }
+      .left { width: 540px; flex: none; }
+      .brand { display: flex; align-items: center; gap: 14px; margin-bottom: 26px; font: 600 17px "JetBrains Mono", monospace; letter-spacing: .2em; }
+      .brand img { width: 52px; height: 52px; }
+      .kicker { font: 600 18px "JetBrains Mono", monospace; letter-spacing: .2em; text-transform: uppercase; color: var(--highlight); margin-bottom: 18px; }
+      h1 { font-size: 58px; font-weight: 800; line-height: 1.02; letter-spacing: -.03em; }
+      h1 .hl { color: var(--highlight); }
+      .sub { font-size: 24px; color: var(--muted); margin-top: 22px; font-weight: 500; }
+      .hero { position: relative; flex: 1; height: 440px; border-radius: 14px; overflow: hidden;
+        box-shadow: 0 50px 120px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.1);
+        transform: perspective(1600px) rotateY(-9deg) rotateX(2deg) scale(1.02); background: #161618; }
+      .hero img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top left; }
+      .play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 96px; height: 96px; border-radius: 50%;
+        background: var(--highlight); display: flex; align-items: center; justify-content: center; box-shadow: 0 14px 44px rgba(0,0,0,.5); }
+      .play::after { content: ""; border-left: 30px solid var(--brand-deep); border-top: 19px solid transparent; border-bottom: 19px solid transparent; margin-left: 7px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="left">
+        <div class="brand"><img src="icon.png" alt="" />MEDIA SHUTTLE</div>
+        <div class="kicker">Free for Mac</div>
+        <h1>Copy camera cards <span class="hl">and check every file.</span></h1>
+        <div class="sub">Every copy checked with SHA-256, then added to Apple Photos.</div>
+      </div>
+      <div class="hero">
+        <img src="renders/hero.png" alt="" />
+        <div class="play"></div>
+      </div>
+    </div>
+  </body>
+</html>

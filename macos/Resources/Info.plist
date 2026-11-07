@@ -39,7 +39,7 @@
     <key>NSSupportsAutomaticGraphicsSwitching</key>
     <true/>
     <key>NSPhotoLibraryAddUsageDescription</key>
-    <string>Media Shuttle adds the photos and videos you transfer to your Photos library, so iCloud Photos can sync them to your other devices. It never reads or changes anything already in your library.</string>
+    <string>Media Shuttle adds the photos and videos you transfer to your Photos library. It can’t see or change anything already there.</string>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2026 Adam Nolle. MIT License.</string>
 </dict>

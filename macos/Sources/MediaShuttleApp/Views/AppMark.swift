@@ -96,29 +96,31 @@ extension AppMark {
     }
 
     /// Backs `NSApp.applicationIconImage` when running unbundled (`swift run`), where
-    /// Info.plist's `CFBundleIconName` has no effect. The packaged .app draws its icon
-    /// from the compiled Icon Composer document. This is the icon tile rather than the bare mark: on
-    /// its own tile the bus keeps the logo's own black card instead of borrowing the
-    /// chrome's foreground colour.
+    /// Info.plist's `CFBundleIconName` has no effect. The packaged .app draws its icon from the
+    /// compiled Icon Composer document. This follows the same layout as that document: the tile
+    /// on Apple's 824-of-1024 grid, so it sits in the Dock at the size of every other icon, and
+    /// the flat mark at about two thirds of the tile's width.
     @MainActor
     static func renderedDockIcon(size: CGFloat = 512) -> NSImage? {
+        let tileSize = size * 824 / 1024
         let tile = ZStack {
-            RoundedRectangle(cornerRadius: size * 0.223, style: .continuous)
+            RoundedRectangle(cornerRadius: tileSize * 0.225, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color(red: 0.925, green: 0.361, blue: 0.302),
-                            Color(red: 0.824, green: 0.216, blue: 0.184),
-                            Color(red: 0.533, green: 0.125, blue: 0.102)
+                            Color(red: 0.957, green: 0.400, blue: 0.333),
+                            Color(red: 0.710, green: 0.149, blue: 0.125)
                         ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+                        startPoint: .top,
+                        endPoint: .bottom
                     )
                 )
+                .frame(width: tileSize, height: tileSize)
+                .shadow(color: .black.opacity(0.28), radius: size * 0.02, y: size * 0.012)
             AppMark(
-                size: size * 0.82,
-                cardColor: Color(red: 0.078, green: 0.086, blue: 0.106),
-                glassColor: Color(red: 0.071, green: 0.082, blue: 0.110),
+                size: size * 0.64,
+                cardColor: Color(red: 0.090, green: 0.098, blue: 0.122),
+                glassColor: Color(red: 0.078, green: 0.094, blue: 0.133),
                 tyreColor: Color(red: 0.055, green: 0.063, blue: 0.082)
             )
         }

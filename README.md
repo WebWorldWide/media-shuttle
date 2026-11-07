@@ -1,103 +1,93 @@
 # Media Shuttle
 
-**Verified camera-card ingest for macOS, Windows, and Linux.**
+Copies photos and videos off camera cards, checks every copy with SHA-256, and only lets you erase the card once every file has a verified copy. For macOS, Windows and Linux.
 
-[mediashuttle.webworldwide.online](https://mediashuttle.webworldwide.online)
+Website: [mediashuttle.webworldwide.online](https://mediashuttle.webworldwide.online)
 
-Media Shuttle sorts photos and videos into a predictable folder layout, checks every copy with SHA-256, and keeps card erase locked until the source and destination still match.
+![Media Shuttle on macOS after a verified transfer](docs/screenshot.png)
 
-<div align="center">
-  <img src="docs/screenshot.png" alt="Media Shuttle showing a verified transfer" width="900">
-</div>
+## Features
 
-[![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111111?style=flat-square&logo=apple)](#download)
-[![Windows 10/11](https://img.shields.io/badge/Windows-10%2F11-0078D4?style=flat-square&logo=windows&logoColor=white)](#download)
-[![Linux GTK 3](https://img.shields.io/badge/Linux-GTK%203-FCC624?style=flat-square&logo=linux&logoColor=black)](#build)
-[![Swift 6](https://img.shields.io/badge/Swift-6-F05138?style=flat-square&logo=swift&logoColor=white)](#build)
-[![.NET 8](https://img.shields.io/badge/.NET-8-512BD4?style=flat-square&logo=dotnet&logoColor=white)](#build)
-[![MIT](https://img.shields.io/badge/license-MIT-2ea44f?style=flat-square)](LICENSE)
+- Finds camera media in `DCIM`, `M4ROOT` and `PRIVATE` folders, or in any folder you choose.
+- Sorts files into `Photos/JPEGs`, `Photos/RAWs`, `Photos/Other` and `Videos`, optionally by date.
+- Hashes each file on the card and at the destination, and keeps the copy only if they match.
+- Skips files that are already at the destination. A different file with the same name is saved as `NAME (2)`.
+- Can start a transfer automatically when a card is inserted, and send a notification when it finishes.
+- Erase unlocks only after a verified transfer. Before deleting, it checks every file against its copy again, refuses if the card has files it can't verify, and asks you to type `ERASE EVERYTHING`. It deletes files but doesn't format the card.
 
-## What it does
+On macOS:
 
-- Finds camera media in `DCIM`, `M4ROOT`, and `PRIVATE` folders.
-- Sorts files into `Camera/Photos/JPEGs`, `Camera/Photos/RAWs`, `Camera/Photos/Other`, and `Camera/Videos`.
-- Writes to a temporary file, hashes the card copy and destination copy independently, and publishes only when they match.
-- Reuses identical files already at the destination and keeps different name collisions.
-- Watches for cards in the background, with optional automatic transfer and native notifications.
-- Opens a camera card folder manually when automatic detection misses it. Use the Source panel, Ctrl+O on Windows, or File → Open Camera Card Folder on macOS.
-- **macOS:** adds verified copies to Apple Photos with one click (Media → Add to Apple Photos, ⇧⌘P), or after every transfer automatically, so iCloud Photos syncs them to your other devices. RAW+JPEG pairs become one asset, files already added are never added twice, and formats Photos can't take (BRAW, R3D, MXF, AVCHD) stay in the destination folder.
-- **macOS:** the menu bar panel shows the connected card, live transfer progress, and recent activity. From it you can transfer, add to Photos, eject, open the destination or report, and switch automatic transfer on or off without opening the window.
-
-Erase is available only after a verified transfer. Before deleting, the app rescans the card and verifies every remaining file against its destination copy. Unknown files keep erase locked. Erasing removes user content; it does not format the card. Type `ERASE EVERYTHING` to confirm. Use the camera's Format command when you need a fresh filesystem.
+- **Add to Apple Photos** (Media menu, ⇧⌘P), or automatically after each transfer. RAW+JPEG pairs become one photo, and files already added are skipped. BRAW, R3D, MXF and AVCHD aren't supported by Photos and stay in the destination folder.
+- **Menu bar panel** with the card, progress, recent activity, and buttons to transfer, add to Photos, eject and change the automatic settings.
 
 ## Download
 
-Get the latest installer and portable build from [GitHub Releases](https://github.com/AdamNolle/media-shuttle/releases).
+Download from [GitHub Releases](https://github.com/WebWorldWide/media-shuttle/releases). Each release includes SHA-256 checksums.
 
-- **Windows:** run `MediaShuttle-Setup-v*-win-x64.exe`, or unzip `MediaShuttle-v*-win-x64.zip`. The build is self-contained; no .NET runtime install is needed.
-- **macOS:** open `MediaShuttle-v*-macOS-universal.dmg` and drag the app to Applications.
-- **Linux:** build from this source tree using the instructions below. A Linux release bundle is not published yet.
-
-Each release includes a platform-specific SHA-256 checksum file. Unsigned Windows builds may show SmartScreen. Signed macOS releases are notarized by Apple and open normally; an ad-hoc community build may require Control-click → **Open**.
+- **macOS 14 or later:** open `MediaShuttle-v*-macOS-universal.dmg` and drag the app to Applications. Releases are signed and notarized.
+- **Windows 10 or 11:** run `MediaShuttle-Setup-v*-win-x64.exe`, or unzip `MediaShuttle-v*-win-x64.zip`. Windows builds aren't signed, so SmartScreen may warn the first time.
+- **Linux:** build from source (below).
 
 ## Build
 
+### macOS
+
+Needs Xcode 26 or later.
+
+```bash
+swift run --package-path macos MediaShuttle
+swift test --package-path macos
+./macos/scripts/package-macos.sh 0.2.1
+```
+
+`package-macos.sh` makes an ad-hoc signed DMG by default. To sign and notarize, save notary credentials once and pass your Developer ID:
+
+```bash
+xcrun notarytool store-credentials media-shuttle-notary --apple-id you@example.com --team-id TEAMID
+
+CODE_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
+NOTARY_KEYCHAIN_PROFILE=media-shuttle-notary \
+./macos/scripts/package-macos.sh 0.2.1
+```
+
+You can use an App Store Connect API key instead by setting `NOTARY_KEY_PATH`, `NOTARY_KEY_ID` and `NOTARY_ISSUER`.
+
 ### Windows
 
-Requires the .NET 8 SDK and Inno Setup 6 to build the installer.
+Needs the .NET 8 SDK, and Inno Setup 6 for the installer.
 
 ```powershell
 .\windows\build.ps1 -Clean
 .\windows\install.ps1
 ```
 
-Use `-SkipInstaller` for a portable-only build. `build.ps1` runs the core safety suite before packaging.
-
-### macOS
-
-Requires Xcode 26 or later and Swift 6.
-
-```bash
-swift run --package-path macos MediaShuttle
-swift test --package-path macos --scratch-path /tmp/media-shuttle-tests
-./macos/scripts/package-macos.sh 0.2.0
-```
-
-Without a signing identity, the package is ad-hoc signed. To produce a signed, notarized, and stapled DMG, store notary credentials once, then pass your Developer ID identity:
-
-```bash
-xcrun notarytool store-credentials media-shuttle-notary \
-    --apple-id you@example.com --team-id TEAMID   # prompts for an app-specific password
-
-CODE_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)" \
-NOTARY_KEYCHAIN_PROFILE=media-shuttle-notary \
-./macos/scripts/package-macos.sh 0.2.0
-```
-
-An App Store Connect API key works as well: set `NOTARY_KEY_PATH`, `NOTARY_KEY_ID`, and `NOTARY_ISSUER` instead of the profile. Release CI reads the `MACOS_CODE_SIGN_IDENTITY` and `MACOS_NOTARY_KEYCHAIN_PROFILE` repository variables.
+`-SkipInstaller` builds only the portable version. `build.ps1` runs the tests first.
 
 ### Linux
 
-The Linux app is written for GTK 3 with PyGObject and uses the system Python 3, GTK, Cairo bindings, and desktop services. On Ubuntu or Debian, install `python3-gi`, `gir1.2-gtk-3.0`, `python3-gi-cairo`, and `python3-cairo` from your distribution. Other distributions provide equivalent GTK 3 introspection and Cairo packages. Run it directly:
+Needs Python 3 with GTK 3 and Cairo bindings. On Ubuntu or Debian: `python3-gi`, `gir1.2-gtk-3.0`, `python3-gi-cairo` and `python3-cairo`.
 
 ```bash
 ./linux/media-shuttle
 PYTHONPATH=linux python3 -m unittest discover -s linux/tests -v
+./linux/install.sh   # installs for your user and adds ~/.local/bin/media-shuttle
 ```
 
-For a rootless desktop installation, run `./linux/install.sh`. It installs the app and icon under your XDG user data directory and links the launcher at `~/.local/bin/media-shuttle`. The desktop environment draws the window title bar and controls; the app retains its dark status row beneath them. No .NET or Swift runtime is required on Linux.
+On Linux, erase works only on a removable volume selected at its root. Folders you choose can be transferred but not erased.
 
-![Media Shuttle on Linux with native Openbox window controls](docs/linux-preview.png)
+![Media Shuttle on Linux](docs/linux-preview.png)
 
-Automatic card detection uses mounted camera volumes containing `DCIM`, `M4ROOT`, or `PRIVATE`; a source folder can also be selected manually. Erase is limited to a removable mounted volume root. The Linux app checks the source and destination again with SHA-256 before deleting card content and preserves known system-managed root entries. A manually selected folder can transfer and verify, but cannot be erased. Linux desktop distributions differ in GTK theme, fonts, window decorations, mount permissions, and packaging, so visual output can vary slightly even though the app body uses the same dimensions, colors, and artwork.
+## Website and video
+
+The website is in `site/` and is published to GitHub Pages when it changes. `docs/video/build.sh` renders the demo video and the images the site uses from the macOS app's own views.
 
 ## CI and releases
 
-GitHub Actions runs Windows, macOS, and Linux safety checks on pushes and pull requests. Linux CI also starts the GTK window in a virtual display. Pull requests from forks use GitHub-hosted runners for isolation. Tagged Windows releases run on Adlon, while macOS releases run on the Mac runner. Both release workflows test and attach their packages to the same GitHub release.
+GitHub Actions runs the tests for all three platforms on every push and pull request. Pull requests from forks run on GitHub-hosted machines. Pushing a `v*` tag builds the Windows and macOS releases and attaches them to the same GitHub release.
 
 ## Privacy
 
-Settings, transfer records, and logs stay on the computer. Media Shuttle makes no network requests and collects no analytics. Add to Photos asks only for add-only access: the app can put new items in your library but can't read it. Any iCloud syncing after that is done by Photos.
+Media Shuttle doesn't connect to the internet or collect analytics. Settings, logs and transfer reports stay on your computer. Add to Photos asks only for permission to add items, not to read your library.
 
 ## License
 

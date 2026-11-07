@@ -9,80 +9,93 @@ struct EraseConfirmationView: View {
     @State private var acknowledged = false
     @FocusState private var phraseIsFocused: Bool
 
+    private static let confirmationPhrase = "ERASE EVERYTHING"
+
     private var isConfirmed: Bool {
-        phrase.trimmingCharacters(in: .whitespacesAndNewlines) == "ERASE EVERYTHING" && acknowledged
+        phrase.trimmingCharacters(in: .whitespacesAndNewlines) == Self.confirmationPhrase && acknowledged
+    }
+
+    private var cardPath: String {
+        model.currentCard?.rootURL.path ?? "the card"
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(spacing: 14) {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 10) {
                 Image(systemName: "externaldrive.badge.xmark")
-                    .font(.system(size: 25, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 52, height: 52)
-                    .background(
-                        LinearGradient(
-                            colors: [.red, .red.opacity(0.72)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        in: RoundedRectangle(cornerRadius: 15, style: .continuous)
-                    )
-                    .shadow(color: Color.red.opacity(0.24), radius: 10, y: 5)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Erase everything on this card?")
-                        .font(.title2.weight(.bold))
-                    Text(model.currentCard?.volumeLabel ?? "Camera media")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Theme.accent)
+                    .frame(width: 30, height: 30)
+                    .overlay(Rectangle().strokeBorder(Theme.accent.opacity(0.5), lineWidth: 1))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Erase \(model.currentCard?.volumeLabel ?? "card")")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Theme.textPrimary)
+                    Text(cardPath)
+                        .font(Theme.mono(9.5))
+                        .foregroundStyle(Theme.textMuted)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
                 }
             }
+            .padding(16)
 
-            Label {
+            Hairline()
+
+            VStack(alignment: .leading, spacing: 16) {
                 Text(
-                    "Every media file will be re-verified against its destination copy before deletion begins. " +
-                    "Camera databases, sidecars, and all other user content will also be removed."
+                    "Every media file is checked against its copy again before anything is deleted. "
+                        + "Everything else on the card is deleted too, including camera databases and sidecar files."
                 )
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
-            } icon: {
-                Image(systemName: "checkmark.shield.fill")
-                    .foregroundStyle(.green)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    SectionLabel("TYPE \(Self.confirmationPhrase) TO CONFIRM")
+                    TextField("", text: $phrase, prompt: Text(Self.confirmationPhrase).foregroundStyle(Theme.textMuted))
+                        .textFieldStyle(.plain)
+                        .font(Theme.mono(12))
+                        .foregroundStyle(Theme.textPrimary)
+                        .padding(.horizontal, 10)
+                        .frame(height: 34)
+                        .background(Theme.fill)
+                        .overlay(
+                            Rectangle().strokeBorder(
+                                phraseIsFocused ? Theme.primaryBorderStrong : Theme.primaryBorder,
+                                lineWidth: 1
+                            )
+                        )
+                        .focused($phraseIsFocused)
+                }
+
+                Toggle(isOn: $acknowledged) {
+                    Text("I understand this permanently deletes all files and folders on \(cardPath).")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .toggleStyle(ShuttleCheckboxStyle())
             }
-            .font(.system(size: 13))
-            .padding(14)
-            .background(Color.green.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
+            .padding(16)
 
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Type ERASE EVERYTHING to continue")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                TextField("ERASE EVERYTHING", text: $phrase, prompt: Text("ERASE EVERYTHING"))
-                    .textFieldStyle(.roundedBorder)
-                    .focused($phraseIsFocused)
-            }
+            Hairline()
 
-            Toggle(isOn: $acknowledged) {
-                Text(
-                    "I understand this permanently removes all files and folders from " +
-                    (model.currentCard?.rootURL.path ?? "the card") + "."
-                )
-            }
-            .toggleStyle(.checkbox)
-
-            Divider()
-
-            HStack {
+            HStack(spacing: 6) {
                 Spacer()
                 Button("Cancel", action: onCancel)
+                    .buttonStyle(ShuttleButtonStyle(kind: .secondary))
                     .keyboardShortcut(.cancelAction)
-                Button("Erase Card Contents", role: .destructive, action: onConfirm)
+                Button("Erase card", action: onConfirm)
+                    .buttonStyle(ShuttleButtonStyle(kind: .destructive))
                     .keyboardShortcut(.defaultAction)
                     .disabled(!isConfirmed || !model.canWipe)
             }
+            .padding(12)
+            .background(Theme.panelFooterBackground)
         }
-        .padding(26)
-        .frame(width: 560)
+        .frame(width: 500)
+        .background(Theme.contentBackground)
         .onAppear { phraseIsFocused = true }
     }
 }

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <!--
+      Media Shuttle promo — HyperFrames composition from the devrel-video skill's template.
+      Timing: title 0 → 3.0 · footage 3.0 → 20.22 (capture.mp4 is 17.22 s) · CTA 20.0 → 24.0.
+      Chapters sit on the capture beats in brief.yaml (data-start = 3.0 + at_seconds).
+      GSAP is vendored into the build folder by build.sh.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=block" rel="stylesheet" />
+    <script src="gsap.min.js"></script>
+    <style>
+      :root {
+        --brand: #3a1513;
+        --brand-deep: #0b0b0c;
+        --accent: #e8433a;
+        --highlight: #ff6a5e;
+        --verified: #5fd08a;
+        --muted: #b9bec4;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--brand-deep); }
+      body { font-family: "Inter", system-ui, sans-serif; color: #fff; -webkit-font-smoothing: antialiased; }
+      .fill { position: absolute; inset: 0; }
+      .center { display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center; }
+      .bg { background: radial-gradient(1200px 720px at 50% 24%, var(--brand) 0%, var(--brand-deep) 72%); }
+
+      .icon { width: 168px; height: 168px; filter: drop-shadow(0 26px 60px rgba(232, 67, 58, .45)); }
+      .wordmark { font-family: "JetBrains Mono", monospace; font-weight: 600; letter-spacing: .2em; font-size: 22px; color: #fff; }
+      .kicker { font-family: "JetBrains Mono", monospace; font-size: 22px; font-weight: 600; letter-spacing: .24em; text-transform: uppercase; color: var(--highlight); margin: 34px 0 22px; }
+      .t-title { font-size: 104px; font-weight: 800; line-height: 1.02; letter-spacing: -.035em; max-width: 1400px; }
+      .t-title .hl { color: var(--highlight); }
+      .t-sub { font-size: 34px; font-weight: 400; color: var(--muted); margin-top: 30px; }
+
+      /* The app window. The SwiftUI render has no traffic lights (the window draws those), so the
+         frame adds them over the app's own title bar. Frame, footage and chrome share one rectangle
+         so a single transform zooms all three together. */
+      #frame, #a-roll, #chrome { position: absolute; left: 240px; top: 120px; width: 1440px; height: 810px; border-radius: 14px; transform-origin: 0 0; }
+      #frame { background: #161618; box-shadow: 0 50px 140px rgba(0,0,0,.65), 0 0 0 1px rgba(255,255,255,.08); z-index: 2; }
+      #a-roll { object-fit: cover; z-index: 3; }
+      #chrome { z-index: 4; pointer-events: none; box-shadow: inset 0 0 0 1px rgba(255,255,255,.1); }
+      .lights { position: absolute; left: 22px; top: 21px; display: flex; gap: 9px; }
+      .lights span { width: 14px; height: 14px; border-radius: 50%; }
+
+      .chapter { position: absolute; left: 240px; top: 975px; height: 58px; display: flex; align-items: center; gap: 16px; padding: 0 28px; background: rgba(11,11,12,.92); border: 1px solid rgba(95,208,138,.45); border-radius: 999px; font-size: 28px; font-weight: 600; z-index: 6; }
+      .chapter .d { width: 12px; height: 12px; background: var(--verified); }
+      .chapter .n { font-family: "JetBrains Mono", monospace; font-size: 20px; color: var(--verified); letter-spacing: .12em; }
+
+      .cta-title { font-size: 92px; font-weight: 800; letter-spacing: -.03em; margin-top: 30px; }
+      .cta-sub { font-size: 32px; color: var(--muted); margin-top: 18px; }
+      .cta-url { margin-top: 34px; font-family: "JetBrains Mono", monospace; font-size: 36px; font-weight: 600; color: var(--highlight); padding: 14px 28px; border: 1px solid rgba(255,106,94,.5); }
+    </style>
+  </head>
+  <body>
+    <div id="root" data-composition-id="main" data-start="0" data-duration="24" data-width="1920" data-height="1080">
+
+      <div id="bg" class="clip fill bg" data-start="0" data-duration="24" data-track-index="0" style="z-index:0"></div>
+
+      <!-- Scene 1 — title -->
+      <div id="title" class="clip fill center bg" data-start="0" data-duration="3.05" data-track-index="1" style="z-index:5">
+        <img id="title-icon" class="icon" src="icon.png" alt="" />
+        <div id="title-kicker" class="kicker">Media Shuttle for Mac</div>
+        <div id="title-text" class="t-title">Copy camera cards<br><span class="hl">and check every file.</span></div>
+      </div>
+
+      <!-- Scene 2 — the app -->
+      <div id="frame" class="clip" data-start="3.0" data-duration="17.22" data-track-index="1"></div>
+      <video id="a-roll" class="clip" src="capture.mp4" muted playsinline data-start="3.0" data-duration="17.22" data-track-index="0"></video>
+      <div id="chrome" class="clip" data-start="3.0" data-duration="17.22" data-track-index="2">
+        <div class="lights">
+          <span style="background:#ff5f57"></span><span style="background:#febc2e"></span><span style="background:#28c840"></span>
+        </div>
+      </div>
+
+      <div id="ch1" class="clip chapter" data-start="3.2" data-duration="3.1" data-track-index="3"><span class="d"></span><span class="n">01</span> Insert a card</div>
+      <div id="ch2" class="clip chapter" data-start="6.4" data-duration="8.0" data-track-index="3"><span class="d"></span><span class="n">02</span> Each file is copied and checked with SHA-256</div>
+      <div id="ch3" class="clip chapter" data-start="14.6" data-duration="5.5" data-track-index="3"><span class="d"></span><span class="n">03</span> Add everything to Apple Photos</div>
+
+      <!-- Scene 3 — CTA -->
+      <div id="cta" class="clip fill center bg" data-start="20.0" data-duration="4.0" data-track-index="4" style="z-index:8">
+        <img id="cta-icon" class="icon" src="icon.png" alt="" />
+        <div id="cta-title" class="cta-title">Free for Mac, Windows and Linux.</div>
+        <div id="cta-sub" class="cta-sub">Open source. No account needed.</div>
+        <div id="cta-url" class="cta-url">mediashuttle.webworldwide.online</div>
+      </div>
+    </div>
+
+    <script>
+      window.__timelines = window.__timelines || {};
+      const tl = gsap.timeline({ paused: true });
+      const win = ["#frame", "#a-roll", "#chrome"];
+
+      tl.from("#title-icon",   { opacity: 0, scale: 0.86, duration: 0.6 }, 0.0);
+      tl.from("#title-kicker", { opacity: 0, y: -18, duration: 0.6 }, 0.25);
+      tl.from("#title-text",   { opacity: 0, y: 34, duration: 0.7 }, 0.45);
+
+      tl.from(win, { opacity: 0, y: 30, scale: 0.97, duration: 0.6, ease: "power2.out" }, 3.0);
+
+      // Lean in on the session panel while the transfer runs, then back out for the verified result.
+      tl.to(win, { scale: 1.45, x: -552, y: -30, duration: 1.4, ease: "power2.inOut" }, 6.6);
+      tl.to(win, { scale: 1, x: 0, y: 0, duration: 1.2, ease: "power2.inOut" }, 11.6);
+      // And on the Photos button and banner as Photos fills.
+      tl.to(win, { scale: 1.45, x: -448, y: -30, duration: 1.2, ease: "power2.inOut" }, 14.4);
+      tl.to(win, { scale: 1, x: 0, y: 0, duration: 1.0, ease: "power2.inOut" }, 18.8);
+
+      tl.from("#ch1", { opacity: 0, x: -26, duration: 0.5 }, 3.2);
+      tl.from("#ch2", { opacity: 0, x: -26, duration: 0.5 }, 6.4);
+      tl.from("#ch3", { opacity: 0, x: -26, duration: 0.5 }, 14.6);
+
+      tl.from("#cta-icon",  { opacity: 0, y: 22, duration: 0.5 }, 20.0);
+      tl.from("#cta-title", { opacity: 0, y: 28, duration: 0.6 }, 20.15);
+      tl.from("#cta-sub",   { opacity: 0, y: 20, duration: 0.6 }, 20.35);
+      tl.from("#cta-url",   { opacity: 0, y: 20, duration: 0.6 }, 20.55);
+      window.__timelines["main"] = tl;
+    </script>
+  </body>
+</html>

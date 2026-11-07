@@ -222,6 +222,140 @@ extension Theme {
     static let primaryBorderStrong = Color.primary.opacity(0.3)
 }
 
+// MARK: - Toggles
+
+/// The app's switch: a square track and square knob in the button palette. On is the primary
+/// button's light fill, off is the secondary button's tint, so a switch reads as the same family
+/// as every button beside it. The stock rounded switch was the one control in the window that
+/// did not.
+struct ShuttleToggleStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Row(configuration: configuration)
+    }
+
+    private struct Row: View {
+        let configuration: Configuration
+        @Environment(\.isEnabled) private var isEnabled
+        @State private var isHovering = false
+
+        var body: some View {
+            HStack(spacing: 10) {
+                configuration.label
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                ShuttleSwitch(isOn: configuration.isOn, isHovering: isHovering && isEnabled)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { configuration.isOn.toggle() }
+            .onHover { isHovering = $0 }
+            .opacity(isEnabled ? 1 : 0.38)
+            .accessibilityRepresentation {
+                Toggle(isOn: configuration.$isOn) { configuration.label }
+            }
+        }
+    }
+}
+
+struct ShuttleSwitch: View {
+    let isOn: Bool
+    var isHovering = false
+
+    var body: some View {
+        ZStack(alignment: isOn ? .trailing : .leading) {
+            Rectangle()
+                .fill(isOn ? Theme.textBright : (isHovering ? Theme.fillStrong : Theme.fill))
+            Rectangle()
+                .fill(isOn ? Theme.contentBackground : Theme.textMuted)
+                .frame(width: 10, height: 10)
+                .padding(3)
+        }
+        .frame(width: 32, height: 16)
+        .overlay(
+            Rectangle().strokeBorder(
+                isOn ? Color.clear : (isHovering ? Theme.primaryBorderStrong : Theme.primaryBorder),
+                lineWidth: 1
+            )
+        )
+        .animation(.easeOut(duration: 0.12), value: isOn)
+        .animation(.easeOut(duration: 0.12), value: isHovering)
+    }
+}
+
+/// Square checkbox in the same palette, with the success banner's check mark.
+struct ShuttleCheckboxStyle: ToggleStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 9) {
+            ZStack {
+                Rectangle()
+                    .fill(configuration.isOn ? Theme.textBright : Theme.fill)
+                Rectangle()
+                    .strokeBorder(configuration.isOn ? Color.clear : Theme.primaryBorder, lineWidth: 1)
+                if configuration.isOn {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 8, weight: .black))
+                        .foregroundStyle(Theme.contentBackground)
+                }
+            }
+            .frame(width: 14, height: 14)
+            .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 }
+            configuration.label
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { configuration.isOn.toggle() }
+        .accessibilityRepresentation {
+            Toggle(isOn: configuration.$isOn) { configuration.label }
+        }
+    }
+}
+
+/// Segmented choice built from the button palette: the selected segment takes the primary fill.
+struct ShuttleSegmentedPicker<Value: Hashable>: View {
+    @Binding var selection: Value
+    let options: [(value: Value, title: String)]
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(Array(options.enumerated()), id: \.offset) { index, option in
+                let selected = option.value == selection
+                Button(option.title) { selection = option.value }
+                    .buttonStyle(Segment(selected: selected))
+                    .accessibilityAddTraits(selected ? .isSelected : [])
+                if index < options.count - 1 {
+                    Rectangle().fill(Theme.primaryBorder).frame(width: 1)
+                }
+            }
+        }
+        .frame(height: 28)
+        .fixedSize(horizontal: false, vertical: true)
+        .overlay(Rectangle().strokeBorder(Theme.primaryBorder, lineWidth: 1))
+    }
+
+    private struct Segment: ButtonStyle {
+        let selected: Bool
+
+        func makeBody(configuration: Configuration) -> some View {
+            Surface(configuration: configuration, selected: selected)
+        }
+
+        private struct Surface: View {
+            let configuration: Configuration
+            let selected: Bool
+            @State private var isHovering = false
+
+            var body: some View {
+                configuration.label
+                    .font(Theme.mono(10, selected ? .semibold : .regular))
+                    .foregroundStyle(selected ? Theme.contentBackground : Theme.textBright)
+                    .padding(.horizontal, 12)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(selected ? Theme.textBright : (isHovering ? Theme.fillStrong : Theme.fill))
+                    .contentShape(Rectangle())
+                    .onHover { isHovering = $0 }
+                    .opacity(configuration.isPressed ? 0.75 : 1)
+            }
+        }
+    }
+}
+
 extension Bundle {
     /// True only when running from a real .app bundle. `swift run` produces a
     /// bare executable, where Info.plist keys such as `CFBundleIconFile` are

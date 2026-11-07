@@ -187,12 +187,12 @@ private struct SessionPanel: View {
                 Button(photos.total > 0 ? "Stop Photos · \(photos.completed)/\(photos.total)" : "Opening Photos…",
                        action: model.cancelAddToPhotos)
                     .buttonStyle(ShuttleButtonStyle(kind: .secondary))
-                    .help("Stop adding to Apple Photos. Items already added stay in the library.")
+                    .help("Stop adding to Photos. Items already added stay.")
             } else {
                 Button("Add to Photos", action: model.addToPhotos)
                     .buttonStyle(ShuttleButtonStyle(kind: .secondary))
                     .disabled(!model.canAddToPhotos)
-                    .help("Add the verified copies to Apple Photos, which syncs them through iCloud Photos.")
+                    .help("Add the verified copies to Apple Photos")
             }
 
             Button("Report", action: model.openReport)
@@ -353,25 +353,25 @@ private struct EraseBar: View {
 
     private var detail: String {
         if !model.sourceAllowsErase {
-            return "Erase is available only for camera-card volumes. Selected folders support transfer and verification."
+            return "Erase works on camera cards only. Folders you choose can be transferred but not erased."
         }
         if model.canWipe {
             let root = model.currentCard?.rootURL.path ?? "the card"
-            return "Every remaining file on \(root) has a verified copy · typed confirmation required"
+            return "Every file on \(root) has a verified copy. You'll be asked to confirm."
         }
         switch model.unverifiableFileCount {
         case 0: break
         case 1:
-            return "Locked — one file on this card is not recognised camera media, "
-                + "so no transfer can verify it. Copy it off the card yourself."
+            return "Locked: one file on this card isn't camera media, so it can't be verified. "
+                + "Copy it off the card yourself."
         default:
-            return "Locked — \(model.unverifiableFileCount) files on this card are not recognised "
-                + "camera media, so no transfer can verify them. Copy them off the card yourself."
+            return "Locked: \(model.unverifiableFileCount) files on this card aren't camera media, so they "
+                + "can't be verified. Copy them off the card yourself."
         }
         if model.media.isEmpty, model.currentCard != nil {
-            return "No verified media is available to erase."
+            return "Nothing verified to erase yet."
         }
-        return "Locked until every remaining camera file has a verified destination copy."
+        return "Locked until every file on the card has a verified copy."
     }
 
     var body: some View {

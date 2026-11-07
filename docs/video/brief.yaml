@@ -1,0 +1,51 @@
+# devrel-video project manifest (github.com/aaitor/skill-video-studio), adapted for a native Mac app.
+id: media-shuttle-promo
+mode: silent-demo
+audience: photographers and videographers offloading camera cards on a Mac
+message: "Every file is copied and checked, then added to Apple Photos."
+cta:
+  title: "Free for Mac, Windows and Linux."
+  url: "mediashuttle.webworldwide.online"
+duration_target_seconds: 24
+brand: media-shuttle            # tokens below; taken from macos/Sources/MediaShuttleApp/Views/ViewStyles.swift
+
+brand_tokens:
+  brand: "#3A1513"              # deep red glow behind the cards
+  brand_deep: "#0B0B0C"         # Theme.windowBackground (dark)
+  accent: "#E8433A"             # Theme.accent (dark)
+  highlight: "#FF6A5E"          # Theme.accentBright (dark), AA on #0B0B0C
+  verified: "#5FD08A"           # Theme.verified (dark)
+  muted: "#B9BEC4"              # Theme.textSecondary (dark)
+  font: "Inter"
+  mono: "JetBrains Mono"
+
+# A native app has no URL for Playwright to record, so the capture step renders the real SwiftUI
+# window offscreen through a scripted ingest (DemoFrames.swift, DEBUG builds only). Same UI code,
+# same layout and type as the shipping app; only the card and its files are simulated.
+capture:
+  source: "MediaShuttle --screenshot --render-demo-frames <dir>"
+  viewport: "1280x720 @2x"
+
+beats:                          # chapter data-start = 3.0 (title) + at_seconds
+  - label: "Insert a card"
+    at_seconds: 0.2
+  - label: "Each file is copied and checked with SHA-256"
+    at_seconds: 3.4
+  - label: "Add everything to Apple Photos"
+    at_seconds: 11.6
+
+approved_claims:
+  - "457 files, 418 JPEG and 39 RAW, from a LEXAR card"
+  - "SHA-256 verification of every copy"
+  - "RAW+JPEG pairs become one item in Apple Photos"
+  - "Erase unlocks only after a verified transfer"
+  - "Free and open source for Mac, Windows and Linux"
+
+outputs:
+  - profile: docs-16x9          # 1920x1080, silent; also a web copy and a poster for the site
+
+audio:
+  music: null
+  narration: null
+  avatar: null
+  subtitles: []

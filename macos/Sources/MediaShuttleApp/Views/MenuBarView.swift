@@ -325,18 +325,13 @@ struct MenuBarView: View {
         }
     }
 
-    /// Label on the left, switch against the right edge, so both switches line up.
     private func switchRow(_ title: String, isOn: Binding<Bool>) -> some View {
-        HStack {
+        Toggle(isOn: isOn) {
             Text(title)
                 .font(.system(size: 11.5))
                 .foregroundStyle(Theme.textSecondary)
-            Spacer(minLength: 8)
-            Toggle(title, isOn: isOn)
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .controlSize(.mini)
         }
+        .toggleStyle(ShuttleToggleStyle())
     }
 
     private var recentActivity: some View {
