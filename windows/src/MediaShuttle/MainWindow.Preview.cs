@@ -122,12 +122,10 @@ public sealed partial class MainWindow
                     }
                 }
                 await Task.Delay(500);
-                foreach (var popup in VisualTreeHelper.GetOpenPopupsForXamlRoot(Root.XamlRoot))
+                // The dialog's popup also holds the dimmed backdrop; render only the dialog panel.
+                if (FindVisualChild<Border>(dialog, "BackgroundElement") is Border panel)
                 {
-                    if (popup.Child is FrameworkElement { ActualWidth: > 0 } child)
-                    {
-                        await SaveElementAsync(child, Path.Combine(directory, $"erase-{theme.ToLowerInvariant()}.png"));
-                    }
+                    await SaveElementAsync(panel, Path.Combine(directory, $"erase-{theme.ToLowerInvariant()}.png"));
                 }
                 dialog.Hide();
                 await Task.Delay(400);
