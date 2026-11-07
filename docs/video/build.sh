@@ -5,7 +5,7 @@
 #   ./docs/video/build.sh
 #
 # Needs Xcode/Swift, FFmpeg, Node (for `npx hyperframes`) and Chrome for the thumbnail (the one HyperFrames downloads works).
-# Writes site/assets/promo.{mp4,webm}, promo-poster.jpg, promo-thumbnail.jpg, menubar.png and docs/video/build/renders/*.
+# Writes site/assets/promo.{mp4,webm}, promo-poster.jpg, promo-thumbnail.jpg and docs/video/build/renders/*.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -26,7 +26,6 @@ ffmpeg -v error -y -f concat -safe 0 -i "$BUILD/frames/frames.txt" \
     -c:v libx264 -crf 14 -preset slow -movflags +faststart "$BUILD/capture.mp4"
 ffprobe -v error -show_entries format=duration -of csv=p=0 "$BUILD/capture.mp4"
 
-cp "$BUILD/frames/menubar.png" "$SITE/menubar.png"
 
 print "== compose =="
 cp "$HERE/index.html" "$HERE/thumbnail.html" "$BUILD/"

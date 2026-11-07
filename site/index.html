@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Media Shuttle: copy camera cards and check every file</title>
-  <meta name="description" content="Media Shuttle copies photos and videos off a camera card, checks each copy with SHA-256, and can add them to Apple Photos. Free for Mac, Windows and Linux.">
+  <title>Media Shuttle</title>
+  <meta name="description" content="Copy camera cards and check every file with SHA-256. Free for Mac, Windows and Linux.">
   <link rel="canonical" href="https://mediashuttle.webworldwide.online/">
   <link rel="icon" href="assets/favicon-64.png" type="image/png">
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
@@ -17,8 +17,7 @@
   <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="style.css">
   <script>
-    // Cloudflare serves HTTPS for this host, but the zone doesn't force it, so plain http:// would
-    // otherwise stay on an unencrypted page.
+    // Cloudflare serves HTTPS for this host, but the zone doesn't force it.
     if (location.protocol === "http:" && location.hostname === "mediashuttle.webworldwide.online") {
       location.replace("https://" + location.host + location.pathname + location.search + location.hash);
     }
@@ -32,8 +31,7 @@
     </a>
     <nav aria-label="Sections">
       <a href="#features">Features</a>
-      <a href="#photos">Apple Photos</a>
-      <a href="#faq">FAQ</a>
+      <a href="https://github.com/WebWorldWide/media-shuttle">GitHub</a>
       <a class="nav-cta" href="#download">Download</a>
     </nav>
   </header>
@@ -42,16 +40,10 @@
     <section class="hero">
       <img class="hero-icon" src="assets/icon.png" alt="" width="128" height="128">
       <h1>Copy camera cards<br><span class="accent">and check every file.</span></h1>
-      <p class="lede">
-        Media Shuttle copies photos and videos off a camera card and checks each copy against the
-        original with SHA-256. It can add them to Apple Photos, and it won’t erase the card until every
-        file has a verified copy.
-      </p>
+      <p class="lede">Free for Mac, Windows and Linux.</p>
       <div class="cta">
-        <a class="button primary big" data-download="primary" href="https://github.com/WebWorldWide/media-shuttle/releases/latest">Download for Mac</a>
-        <a class="button big" href="#download">Windows and Linux</a>
+        <a class="button primary big" data-download="primary" href="#download">Download</a>
       </div>
-      <p class="fineprint">Free and open source. macOS 14 or later.</p>
     </section>
 
     <section class="video-wrap">
@@ -69,119 +61,60 @@
       <div class="grid">
         <article class="panel">
           <h3>Checks every copy</h3>
-          <p>Each file is hashed on the card and again at the destination. A file only counts as copied when the two match.</p>
+          <p>Each file is hashed with SHA-256 on the card and at the destination.</p>
         </article>
         <article class="panel">
-          <h3>Sorts as it copies</h3>
-          <p>JPEG, RAW and video go into separate folders, optionally by date. Files already at the destination are checked and skipped instead of copied again.</p>
+          <h3>Sorts files</h3>
+          <p>JPEG, RAW and video go into their own folders, optionally by date.</p>
         </article>
         <article class="panel">
-          <h3>Erases only when it’s safe</h3>
-          <p>Erase stays locked until a verified transfer. Before deleting, it checks every file on the card against its copy again, and you type <code>ERASE EVERYTHING</code> to confirm.</p>
+          <h3>Skips duplicates</h3>
+          <p>Files already at the destination aren’t copied again.</p>
         </article>
-      </div>
-    </section>
-
-    <section id="photos" class="section split">
-      <div>
-        <p class="label">MAC</p>
-        <h2>Add to Apple Photos</h2>
-        <p>Send the verified copies to your Photos library with one click, or automatically after each transfer.
-          If you use iCloud Photos, they sync to your other devices.</p>
-        <ul class="ticks">
-          <li>RAW+JPEG pairs become one photo.</li>
-          <li>Photos you’ve already added are skipped.</li>
-          <li>It asks for permission to add photos only, not to read your library.</li>
-          <li>Photos doesn’t support BRAW, R3D, MXF or AVCHD, so those stay in your folder.</li>
-        </ul>
-        <h3 class="subhead">Menu bar</h3>
-        <p>The menu bar shows the card, progress and recent activity. You can start a transfer, add to Photos,
-          eject the card or turn on automatic transfer from there.</p>
-      </div>
-      <figure class="menubar-shot">
-        <img src="assets/menubar.png" width="340" height="673" loading="lazy"
-             alt="The Media Shuttle menu bar panel, copying 284 of 457 files from a card named LEXAR while adding 48 of 418 items to Apple Photos.">
-      </figure>
-    </section>
-
-    <section class="section">
-      <h2>Compared with copying in Finder</h2>
-      <div class="table-wrap">
-        <table class="compare">
-          <thead>
-            <tr><th scope="col"></th><th scope="col">Finder</th><th scope="col" class="us">Media Shuttle</th></tr>
-          </thead>
-          <tbody>
-            <tr><th scope="row">Checks each copy against the card</th><td class="no">No</td><td class="yes">SHA-256, every file</td></tr>
-            <tr><th scope="row">Sorts JPEG, RAW and video</th><td class="no">By hand</td><td class="yes">Automatically</td></tr>
-            <tr><th scope="row">Skips files already copied</th><td class="no">Asks each time</td><td class="yes">Checks, then skips</td></tr>
-            <tr><th scope="row">Blocks erasing an unsafe card</th><td class="no">No</td><td class="yes">Yes</td></tr>
-            <tr><th scope="row">Adds to Apple Photos</th><td class="no">Separate import</td><td class="yes">One click</td></tr>
-            <tr><th scope="row">Starts when a card is inserted</th><td class="no">No</td><td class="yes">Optional</td></tr>
-            <tr><th scope="row">Keeps a report of each transfer</th><td class="no">No</td><td class="yes">Yes</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <section class="section">
-      <div class="grid two">
+        <article class="panel">
+          <h3>Safe erase</h3>
+          <p>The card can only be erased after every file has a verified copy.</p>
+        </article>
+        <article class="panel">
+          <h3>Automatic</h3>
+          <p>Can start copying as soon as a card is inserted.</p>
+        </article>
+        <article class="panel">
+          <h3>Apple Photos <span class="tag">Mac</span></h3>
+          <p>Adds the copies to Photos, with RAW and JPEG pairs kept together.</p>
+        </article>
+        <article class="panel">
+          <h3>Menu bar <span class="tag">Mac</span></h3>
+          <p>Progress and controls without opening the window.</p>
+        </article>
         <article class="panel">
           <h3>Camera formats</h3>
-          <p>ARW, CR3, NEF, RAF, DNG, ORF, RW2 and other RAW formats, JPEG, HEIF, and MP4, MOV, MXF, BRAW, R3D and AVCHD video.</p>
+          <p>RAW from every major brand, JPEG, HEIF, MP4, MOV, MXF, BRAW, R3D and AVCHD.</p>
         </article>
         <article class="panel">
-          <h3>Privacy</h3>
-          <p>No account, analytics or network requests. Settings, logs and transfer reports stay on your computer.</p>
+          <h3>Offline</h3>
+          <p>No account, no analytics, no network access.</p>
         </article>
       </div>
-    </section>
-
-    <section id="faq" class="section faq">
-      <h2>FAQ</h2>
-      <details>
-        <summary>Is it free?</summary>
-        <p>Yes. It’s open source under the MIT license.</p>
-      </details>
-      <details>
-        <summary>Does it upload my photos?</summary>
-        <p>No. Media Shuttle doesn’t connect to the internet. If you add photos to Apple Photos, your iCloud settings decide what syncs.</p>
-      </details>
-      <details>
-        <summary>Can it delete files I haven’t copied?</summary>
-        <p>Erase only unlocks after a verified transfer. It checks every file against its copy again first, and it refuses if the card has files it can’t verify.</p>
-      </details>
-      <details>
-        <summary>Does it format the card?</summary>
-        <p>No. It deletes the files and leaves the card’s filesystem as it is. Use your camera’s Format command for a fresh card.</p>
-      </details>
-      <details>
-        <summary>Which cameras does it work with?</summary>
-        <p>Any camera that writes a <code>DCIM</code> folder, plus Sony’s <code>M4ROOT</code> and <code>PRIVATE</code> video folders. You can also choose any folder yourself.</p>
-      </details>
-      <details>
-        <summary>What about Windows and Linux?</summary>
-        <p>Both have native apps with the same verified copy and erase. Apple Photos import is Mac only.</p>
-      </details>
     </section>
 
     <section id="download" class="section">
       <h2>Download</h2>
-      <div class="grid platforms">
+      <div class="grid">
         <article class="panel platform">
           <h3>macOS</h3>
-          <p>For Apple silicon and Intel Macs on macOS 14 or later. Signed and notarized by Apple.</p>
+          <p>macOS 14 or later.</p>
           <a class="button primary" data-asset="macOS-universal.dmg" href="https://github.com/WebWorldWide/media-shuttle/releases/latest">Download for Mac</a>
         </article>
         <article class="panel platform">
           <h3>Windows</h3>
-          <p>Installer for Windows 10 and 11. Nothing else to install.</p>
+          <p>Windows 10 or 11.</p>
           <a class="button primary" data-asset="win-x64.exe" href="https://github.com/WebWorldWide/media-shuttle/releases/latest">Download for Windows</a>
         </article>
         <article class="panel platform">
           <h3>Linux</h3>
-          <p>A GTK app that installs for your user with one script.</p>
-          <a class="button" href="https://github.com/WebWorldWide/media-shuttle#linux">Install on Linux</a>
+          <p>Flatpak for x86_64 and ARM.</p>
+          <a class="button primary" data-asset="linux-x86_64.flatpak" data-asset-arm="linux-aarch64.flatpak" href="https://github.com/WebWorldWide/media-shuttle/releases/latest">Download for Linux</a>
         </article>
       </div>
     </section>
@@ -196,19 +129,14 @@
   </footer>
 
   <script>
-    // Offer the visitor's own platform first.
-    const platform = /Windows/i.test(navigator.userAgent) ? "windows"
-      : /Linux|X11/i.test(navigator.userAgent) && !/Android/i.test(navigator.userAgent) ? "linux" : "mac";
+    const ua = navigator.userAgent;
+    const platform = /Windows/i.test(ua) ? "windows" : /Linux|X11/i.test(ua) && !/Android/i.test(ua) ? "linux" : "mac";
+    const arm = /aarch64|arm64/i.test(ua);
     const primary = document.querySelector('[data-download="primary"]');
-    if (platform === "windows") primary.textContent = "Download for Windows";
-    if (platform === "linux") {
-      primary.textContent = "Install on Linux";
-      primary.href = "https://github.com/WebWorldWide/media-shuttle#linux";
-    }
+    primary.textContent = { mac: "Download for Mac", windows: "Download for Windows", linux: "Download for Linux" }[platform];
 
-    // Point each download at the newest release that has its file, since a release can ship for
-    // one platform before the others. If GitHub's API is unavailable, the links stay on the
-    // latest release page.
+    // Each button gets the newest release that has its file, since a release can ship for one
+    // platform before the others. If GitHub's API is unavailable, they link to the release page.
     fetch("https://api.github.com/repos/WebWorldWide/media-shuttle/releases?per_page=20")
       .then((response) => (response.ok ? response.json() : Promise.reject()))
       .then((releases) => {
@@ -216,16 +144,20 @@
         const newest = (suffix) => {
           for (const release of published) {
             const asset = (release.assets || []).find((candidate) => candidate.name.endsWith(suffix));
-            if (asset) return asset;
+            if (asset) return asset.browser_download_url;
           }
           return null;
         };
         document.querySelectorAll("[data-asset]").forEach((link) => {
-          const asset = newest(link.dataset.asset);
-          if (asset) link.href = asset.browser_download_url;
+          const suffix = arm && link.dataset.assetArm ? link.dataset.assetArm : link.dataset.asset;
+          const url = newest(suffix);
+          if (url) link.href = url;
         });
-        const mine = platform === "windows" ? newest("win-x64.exe") : platform === "mac" ? newest("macOS-universal.dmg") : null;
-        if (mine) primary.href = mine.browser_download_url;
+        primary.href = document.querySelector(
+          platform === "windows" ? '[data-asset="win-x64.exe"]'
+            : platform === "linux" ? '[data-asset="linux-x86_64.flatpak"]'
+            : '[data-asset="macOS-universal.dmg"]'
+        ).href;
       })
       .catch(() => {});
   </script>

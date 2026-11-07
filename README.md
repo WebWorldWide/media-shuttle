@@ -26,7 +26,7 @@ Download from [GitHub Releases](https://github.com/WebWorldWide/media-shuttle/re
 
 - **macOS 14 or later:** open `MediaShuttle-v*-macOS-universal.dmg` and drag the app to Applications. Releases are signed and notarized.
 - **Windows 10 or 11:** run `MediaShuttle-Setup-v*-win-x64.exe`, or unzip `MediaShuttle-v*-win-x64.zip`. Windows builds aren't signed, so SmartScreen may warn the first time.
-- **Linux:** build from source (below).
+- **Linux:** download `MediaShuttle-v*-linux-x86_64.flatpak` (or `-aarch64` for ARM) and open it, or run `flatpak install MediaShuttle-v*-linux-x86_64.flatpak`. It installs the GNOME runtime from Flathub if you don't have it.
 
 ## Build
 
@@ -73,6 +73,12 @@ PYTHONPATH=linux python3 -m unittest discover -s linux/tests -v
 ./linux/install.sh   # installs for your user and adds ~/.local/bin/media-shuttle
 ```
 
+To build the Flatpak yourself:
+
+```bash
+flatpak-builder --user --install --force-clean build linux/flatpak/io.github.adamnolle.MediaShuttle.yml
+```
+
 On Linux, erase works only on a removable volume selected at its root. Folders you choose can be transferred but not erased.
 
 ![Media Shuttle on Linux](docs/linux-preview.png)
@@ -83,7 +89,7 @@ The website is in `site/` and is published to GitHub Pages when it changes. `doc
 
 ## CI and releases
 
-GitHub Actions runs the tests for all three platforms on every push and pull request. Pull requests from forks run on GitHub-hosted machines. Pushing a `v*` tag builds the Windows and macOS releases and attaches them to the same GitHub release.
+GitHub Actions runs the tests for all three platforms on every push and pull request. Pull requests from forks run on GitHub-hosted machines. Pushing a `v*` tag builds the Windows, macOS and Linux Flatpak releases and attaches them to the same GitHub release.
 
 ## Privacy
 
