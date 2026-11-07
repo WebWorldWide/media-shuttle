@@ -13,7 +13,8 @@ internal static class Program
         {
             await RunAsync(testRoot);
             await RunParitySafetyAsync(testRoot);
-            Console.WriteLine($"PASS: {_assertions} assertions covering classification, settings, card arrivals, folder sources, verified copy, date folders, duplicates, collisions, links, cancellation, erase eligibility, and post-erase verification.");
+            await RunCollisionReuseAsync(testRoot);
+            Console.WriteLine($"PASS: {_assertions} assertions covering classification, settings, card arrivals, folder sources, verified copy, date folders, duplicates, collisions, collision reuse, links, cancellation, erase eligibility, and post-erase verification.");
             return 0;
         }
         catch (Exception exception)
@@ -161,6 +162,12 @@ internal static class Program
         TransferResult collision = await transfer.TransferAsync(card, destinationRoot, false, null, CancellationToken.None);
         Assert(collision.Session.CopiedCount == 1, "Changed same-name file is copied");
         Assert(File.Exists(Path.Combine(destinationRoot, "Photos", "JPEGs", "DSC00001 (2).JPG")), "Collision uses numbered filename");
+        TransferResult collisionRerun = await transfer.TransferAsync(card, destinationRoot, false, null, CancellationToken.None);
+        Assert(collisionRerun.Session.CopiedCount == 0, "Rerun after a collision copies nothing");
+        Assert(!File.Exists(Path.Combine(destinationRoot, "Photos", "JPEGs", "DSC00001 (3).JPG")), "Rerun reuses the numbered copy");
+        Assert(
+            collisionRerun.Session.Files.Any(record => record.DestinationPath.EndsWith("DSC00001 (2).JPG", StringComparison.Ordinal)),
+            "Rerun records the numbered copy");
 
         // The same rule the other way round: a category the card does hold is still created.
         string otherCardRoot = Path.Combine(testRoot, "OTHER-CARD");
@@ -369,6 +376,34 @@ internal static class Program
         })!;
         process.WaitForExit();
         if (process.ExitCode != 0) throw new IOException("Could not create test junction: " + process.StandardError.ReadToEnd());
+    }
+
+    private static async Task RunCollisionReuseAsync(string testRoot)
+    {
+        string cardRoot = Path.Combine(testRoot, "REUSE-CARD");
+        string destinationRoot = Path.Combine(testRoot, "Camera-Reuse");
+        string stateRoot = Path.Combine(testRoot, "State-Reuse");
+        string photo = Path.Combine(cardRoot, "DCIM", "100MSDCF", "DSC00010.JPG");
+        Directory.CreateDirectory(Path.GetDirectoryName(photo)!);
+        Directory.CreateDirectory(destinationRoot);
+        await File.WriteAllTextAsync(photo, "first");
+        var stateStore = new StateStore(stateRoot);
+        var transfer = new TransferService(stateStore, new AppLogger(stateRoot));
+        var card = new CardInfo(cardRoot, "REUSE", 0, 64L * 1024 * 1024, 48L * 1024 * 1024, "Removable");
+        string jpegs = Path.Combine(destinationRoot, "Photos", "JPEGs");
+
+        await transfer.TransferAsync(card, destinationRoot, false, null, CancellationToken.None);
+        await File.WriteAllTextAsync(photo, "a longer second file");
+        TransferResult collision = await transfer.TransferAsync(card, destinationRoot, false, null, CancellationToken.None);
+        Assert(collision.Session.CopiedCount == 1, "Different-size same-name file is copied");
+        Assert(File.Exists(Path.Combine(jpegs, "DSC00010 (2).JPG")), "Different-size collision uses numbered filename");
+
+        TransferResult rerun = await transfer.TransferAsync(card, destinationRoot, false, null, CancellationToken.None);
+        Assert(rerun.Session.CopiedCount == 0 && rerun.Session.SkippedCount == 1, "Different-size rerun reuses the numbered copy");
+        Assert(!File.Exists(Path.Combine(jpegs, "DSC00010 (3).JPG")), "Different-size rerun writes no third copy");
+        Assert(
+            rerun.Session.Files.Single().DestinationPath.EndsWith("DSC00010 (2).JPG", StringComparison.Ordinal),
+            "Different-size rerun records the numbered copy");
     }
 
     private static void Assert(bool condition, string message)

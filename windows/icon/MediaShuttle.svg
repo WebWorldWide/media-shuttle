@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- 48px and up.
+       Flat copy of macos/Resources/MediaShuttle.icon: same gradient, same layers.
+       Rebuild the .ico with windows/icon/build-icon.sh. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F46655"/>
+      <stop offset="1" stop-color="#B52620"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#5A0E0A" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+  <rect x="40" y="40" width="944" height="944" rx="198" fill="url(#tile)"/>
+  <g transform="translate(40 40) scale(0.9219)">
+  <g filter="url(#shadow)" transform="translate(512 520) scale(0.78) translate(-512 -498)">
+    <path d="M112 256 H782 L912 386 V670 H112 Z" fill="#17191F" stroke="#17191F" stroke-width="40" stroke-linejoin="round"/>
+    <rect x="138" y="282" width="512" height="362" rx="54" fill="#FFC21A"/>
+    <g fill="#141822">
+      <rect x="172" y="316" width="130" height="128" rx="14"/>
+      <rect x="329" y="316" width="130" height="128" rx="14"/>
+      <rect x="486" y="316" width="130" height="128" rx="14"/>
+      <path d="M694 316 H784 L840 372 V444 H694 Z" stroke="#141822" stroke-width="22" stroke-linejoin="round"/>
+      <rect x="172" y="514" width="444" height="20" rx="10"/>
+    </g>
+    <circle cx="280" cy="676" r="84" fill="#0E1015"/>
+    <circle cx="778" cy="676" r="84" fill="#0E1015"/>
+    <circle cx="280" cy="676" r="40" fill="#D9DEE5"/>
+    <circle cx="778" cy="676" r="40" fill="#D9DEE5"/>
+  </g>
+  </g>
+</svg>

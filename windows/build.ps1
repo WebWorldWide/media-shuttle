@@ -33,11 +33,11 @@ if ([IO.Directory]::Exists($publishRoot)) {
 }
 New-Item -ItemType Directory -Path $publishRoot -Force | Out-Null
 
-# The icon is a committed asset, built from docs/logo by docs/logo/export.py. It used to
+# The icon is a committed asset, built from windows/icon by build-icon.sh. It used to
 # be drawn here at build time, which meant the build could only ever ship the mark that
 # one script knew how to draw.
 if (-not [IO.File]::Exists($iconPath)) {
-    throw "The application icon is missing: $iconPath. Rebuild it with 'python docs/logo/export.py'."
+    throw "The application icon is missing: $iconPath. Rebuild it with windows/icon/build-icon.sh."
 }
 
 dotnet restore $project

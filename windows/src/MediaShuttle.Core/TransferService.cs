@@ -41,7 +41,7 @@ public sealed class TransferService
         }
 
         long totalBytes = media.Sum(item => item.Size);
-        EnsureFreeSpace(destinationRoot, totalBytes);
+        EnsureFreeSpace(destinationRoot, BytesToWrite(destinationRoot, media, groupByDate));
         EnsureDestinationFolders(destinationRoot, media);
 
         var session = new TransferSession
@@ -60,11 +60,7 @@ public sealed class TransferService
         foreach (MediaItem item in media)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            string folder = Path.Combine(destinationRoot, MediaClassifier.DestinationFolder(item.Kind));
-            if (groupByDate)
-            {
-                folder = Path.Combine(folder, item.LastWriteTimeUtc.ToLocalTime().ToString("yyyy-MM-dd"));
-            }
+            string folder = FolderFor(destinationRoot, item, groupByDate);
             PathUtilities.EnsureNoLinks(folder);
             Directory.CreateDirectory(folder);
 
@@ -95,6 +91,16 @@ public sealed class TransferService
                     processedBytes += item.Size;
                     await _logger.WriteAsync($"Verified existing {item.FileName}", cancellationToken);
                 }
+                else if (await FindNumberedCopyAsync(folder, item, sourceHash, cancellationToken).ConfigureAwait(false)
+                         is (string numberedCopy, _))
+                {
+                    destinationPath = numberedCopy;
+                    hash = sourceHash;
+                    skipped = true;
+                    session.SkippedCount++;
+                    processedBytes += item.Size;
+                    await _logger.WriteAsync($"Verified existing {Path.GetFileName(numberedCopy)}", cancellationToken);
+                }
                 else
                 {
                     destinationPath = GetUniquePath(folder, item.FileName);
@@ -110,6 +116,17 @@ public sealed class TransferService
                         progress,
                         cancellationToken).ConfigureAwait(false);
                 }
+            }
+            else if (File.Exists(destinationPath) &&
+                     await FindNumberedCopyAsync(folder, item, null, cancellationToken).ConfigureAwait(false)
+                         is (string numberedCopy, string numberedHash))
+            {
+                destinationPath = numberedCopy;
+                hash = numberedHash;
+                skipped = true;
+                session.SkippedCount++;
+                processedBytes += item.Size;
+                await _logger.WriteAsync($"Verified existing {Path.GetFileName(numberedCopy)}", cancellationToken);
             }
             else
             {
@@ -274,19 +291,94 @@ public sealed class TransferService
         }
     }
 
+    private static string FolderFor(string destinationRoot, MediaItem item, bool groupByDate)
+    {
+        string folder = Path.Combine(destinationRoot, MediaClassifier.DestinationFolder(item.Kind));
+        return groupByDate
+            ? Path.Combine(folder, item.LastWriteTimeUtc.ToLocalTime().ToString("yyyy-MM-dd"))
+            : folder;
+    }
+
+    private static string NumberedPath(string directory, string fileName, int number) =>
+        Path.Combine(
+            directory,
+            $"{Path.GetFileNameWithoutExtension(fileName)} ({number}){Path.GetExtension(fileName)}");
+
     private static string GetUniquePath(string directory, string fileName)
     {
-        string stem = Path.GetFileNameWithoutExtension(fileName);
-        string extension = Path.GetExtension(fileName);
         for (int number = 2; ; number++)
         {
-            string candidate = Path.Combine(directory, $"{stem} ({number}){extension}");
-            if (!File.Exists(candidate))
+            string candidate = NumberedPath(directory, fileName, number);
+            if (!File.Exists(candidate) && !Directory.Exists(candidate))
             {
                 return candidate;
             }
         }
     }
+
+    private static long ExistingFileSize(string path)
+    {
+        try
+        {
+            var info = new FileInfo(path);
+            return info.Exists && !info.Attributes.HasFlag(FileAttributes.ReparsePoint) ? info.Length : -1;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return -1;
+        }
+    }
+
+    /// <summary>
+    /// A different file that once had this name was kept as "NAME (2).EXT", and the copy of this
+    /// file may be one of those numbered names. Without looking, every repeat transfer of the card
+    /// wrote another "(3)", "(4)" copy of the same file.
+    /// </summary>
+    private static async Task<(string Path, string Sha256)?> FindNumberedCopyAsync(
+        string folder,
+        MediaItem item,
+        string? sourceHash,
+        CancellationToken cancellationToken)
+    {
+        var candidates = new List<string>();
+        for (int number = 2; ; number++)
+        {
+            string candidate = NumberedPath(folder, item.FileName, number);
+            if (!File.Exists(candidate) && !Directory.Exists(candidate))
+            {
+                break;
+            }
+            if (ExistingFileSize(candidate) == item.Size)
+            {
+                candidates.Add(candidate);
+            }
+        }
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+
+        sourceHash ??= await FileHasher.Sha256Async(item.SourcePath, cancellationToken).ConfigureAwait(false);
+        foreach (string candidate in candidates)
+        {
+            string candidateHash = await FileHasher.Sha256Async(candidate, cancellationToken).ConfigureAwait(false);
+            if (candidateHash.Equals(sourceHash, StringComparison.OrdinalIgnoreCase))
+            {
+                return (candidate, sourceHash);
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Counts only what may have to be written. A same-size file already under its own name is
+    /// almost always the copy an earlier run made, so counting it made "Transfer again" on a full
+    /// card ask for the whole card's size in free space a second time with nothing left to copy.
+    /// </summary>
+    private static long BytesToWrite(string destinationRoot, IReadOnlyList<MediaItem> media, bool groupByDate) =>
+        media
+            .Where(item => ExistingFileSize(Path.Combine(FolderFor(destinationRoot, item, groupByDate), item.FileName)) != item.Size)
+            .Sum(item => item.Size);
 
     /// <summary>
     /// Creates a category folder only for the kinds this card actually holds. Creating all four up
@@ -363,17 +455,27 @@ public sealed class TransferService
     // DriveInfo answers for drive letters only: it rejects a UNC share and reports the host volume
     // rather than the mounted one for a directory mount point, so a network or mounted destination
     // failed the check with "Object must be a root directory" instead of being measured.
-    private static void EnsureFreeSpace(string destinationRoot, long totalBytes)
+    private static void EnsureFreeSpace(string destinationRoot, long bytesToWrite)
     {
-        if (!NativeMethods.GetDiskFreeSpaceEx(destinationRoot, out ulong availableBytes, out _, out _))
+        ulong availableBytes;
+        if (OperatingSystem.IsWindows())
         {
-            throw new IOException("The free space on the destination drive could not be read.");
+            if (!NativeMethods.GetDiskFreeSpaceEx(destinationRoot, out availableBytes, out _, out _))
+            {
+                throw new IOException("Couldn't read the free space on the destination drive.");
+            }
+        }
+        else
+        {
+            // Only the core tests run off Windows.
+            availableBytes = (ulong)Math.Max(0, new DriveInfo(destinationRoot).AvailableFreeSpace);
         }
 
         const ulong reserve = 1024UL * 1024UL * 1024UL;
-        if (availableBytes < (ulong)Math.Max(0, totalBytes) + reserve)
+        if (availableBytes < (ulong)Math.Max(0, bytesToWrite) + reserve)
         {
-            throw new IOException("Not enough free space. Keep at least the card size plus 1 GB available.");
+            throw new IOException(
+                "Not enough free space at the destination. Free up room for the new files plus 1 GB, or choose another destination.");
         }
     }
 }

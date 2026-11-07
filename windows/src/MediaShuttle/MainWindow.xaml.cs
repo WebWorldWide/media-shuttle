@@ -78,6 +78,7 @@ public sealed partial class MainWindow : Window
     private bool _scanInProgress;
     private bool _busy;
     private bool _destinationAvailable = true;
+    private bool _currentCardEjectable;
     private int _lastScannedMediaCount = -1;
     private int _unverifiableFileCount;
     private string? _lastScanSignature;
@@ -98,11 +99,6 @@ public sealed partial class MainWindow : Window
         _wipeService = new WipeService(_stateStore, _logger);
 
         InitializeComponent();
-        foreach (ToggleSwitch toggle in new[]
-            { AutoTransferToggle, GroupByDateToggle, NotificationsToggle, ActivityToggle, StartupToggle })
-        {
-            ToggleSwitchAppearance.UseSquareCorners(toggle);
-        }
         Title = IsVisualPreview ? "Media Shuttle — Visual Preview" : "Media Shuttle";
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppHeader);
@@ -192,12 +188,7 @@ public sealed partial class MainWindow : Window
         ChangeDestinationButton.Click += async (_, _) => await ChooseDestinationAsync();
         ChooseSourceButton.Click += async (_, _) => await ChooseSourceAsync();
         AutomaticSourceButton.Click += async (_, _) => await UseAutomaticSourceAsync();
-        CancelButton.Click += (_, _) =>
-        {
-            _operationCancellation?.Cancel();
-            CancelButton.IsEnabled = false;
-            AddActivity("Cancellation requested. The current block will finish safely.");
-        };
+        CancelButton.Click += (_, _) => CancelOperation();
         WipeButton.Click += async (_, _) => await ConfirmAndWipeAsync();
         ReportButton.Click += (_, _) => OpenSessionReport();
         SessionTransferAgainButton.Click += async (_, _) =>
@@ -215,7 +206,11 @@ public sealed partial class MainWindow : Window
             await SaveSettingsFromControlsAsync();
         };
         StartupToggle.Toggled += async (_, _) => await UpdateStartupAsync();
-        ThemeComboBox.SelectionChanged += async (_, _) => await UpdateThemeAsync();
+        foreach (RadioButton themeButton in ThemeButtons)
+        {
+            themeButton.Checked += async (_, _) => await UpdateThemeAsync();
+        }
+        EjectButton.Click += async (_, _) => await EjectCardAsync();
 
         _scanTimer = DispatcherQueue.CreateTimer();
         _scanTimer.Interval = TimeSpan.FromSeconds(2);
@@ -229,17 +224,7 @@ public sealed partial class MainWindow : Window
             windowHandle,
             iconPath,
             () => DispatcherQueue.TryEnqueue(ShowWindow),
-            () => DispatcherQueue.TryEnqueue(OpenDestinationFolder),
-            () => DispatcherQueue.TryEnqueue(ExitApplication),
-            () => DispatcherQueue.TryEnqueue(async () => { ShowWindow(); await ChooseSourceAsync(); }),
-            () => DispatcherQueue.TryEnqueue(async () =>
-            {
-                if (_destinationAvailable) await StartTransferAsync();
-                else { ShowWindow(); await ChooseDestinationAsync(); }
-            }),
-            () => !_busy,
-            () => !_busy && (!_destinationAvailable || (_currentCard is not null && _lastScannedMediaCount > 0)),
-            () => _destinationAvailable);
+            BuildTrayMenu);
         Root.Loaded += async (_, _) =>
         {
 #if DEBUG
@@ -247,6 +232,75 @@ public sealed partial class MainWindow : Window
 #endif
             await InitializeAsync();
         };
+    }
+
+    /// <summary>
+    /// The tray menu, built fresh each time it opens. It carries what the macOS menu bar panel
+    /// does: where things stand, the next action, the card and destination actions, and the
+    /// automatic-transfer switch.
+    /// </summary>
+    private IReadOnlyList<TrayMenuItem> BuildTrayMenu()
+    {
+        void Run(Func<Task> action) => DispatcherQueue.TryEnqueue(async () => await action());
+        void RunWithWindow(Func<Task> action) => DispatcherQueue.TryEnqueue(async () => { ShowWindow(); await action(); });
+
+        var items = new List<TrayMenuItem>
+        {
+            new(TrayStatus()),
+            TrayMenuItem.Separator,
+            new("Open Media Shuttle", () => DispatcherQueue.TryEnqueue(ShowWindow), IsDefault: true),
+            TrayMenuItem.Separator
+        };
+
+        if (_busy)
+        {
+            if (_operationCancellation is not null)
+                items.Add(new("Cancel transfer", () => DispatcherQueue.TryEnqueue(CancelOperation)));
+        }
+        else if (!_destinationAvailable)
+        {
+            items.Add(new("Choose destination…", () => RunWithWindow(ChooseDestinationAsync)));
+        }
+        else
+        {
+            items.Add(new(_verifiedSession is null ? "Transfer and verify" : "Transfer again",
+                () => Run(StartTransferAsync), Enabled: _currentCard is not null && _lastScannedMediaCount > 0));
+        }
+        items.Add(new("Scan for media", () => Run(() => ScanCardsAsync(force: true)), Enabled: !_busy));
+        items.Add(new("Choose source…", () => RunWithWindow(ChooseSourceAsync), Enabled: !_busy));
+        if (_selectedSourceRoot is not null)
+            items.Add(new("Use auto-detect", () => Run(UseAutomaticSourceAsync), Enabled: !_busy));
+        if (_currentCardEjectable && _currentCard is not null)
+            items.Add(new($"Eject {_currentCard.VolumeLabel}", () => Run(EjectCardAsync), Enabled: CanEject));
+        items.Add(TrayMenuItem.Separator);
+        items.Add(new("Open destination folder", () => DispatcherQueue.TryEnqueue(OpenDestinationFolder), Enabled: _destinationAvailable));
+        items.Add(new("Show transfer report", () => DispatcherQueue.TryEnqueue(OpenSessionReport), Enabled: !_busy && _lastSessionFilePath is not null));
+        items.Add(new("Erase card…", () => RunWithWindow(ConfirmAndWipeAsync), Enabled: WipeButton.IsEnabled));
+        items.Add(TrayMenuItem.Separator);
+        items.Add(new("Transfer new cards automatically",
+            () => DispatcherQueue.TryEnqueue(() => AutoTransferToggle.IsOn = !AutoTransferToggle.IsOn),
+            Enabled: !_busy, Checked: _settings.AutoTransfer));
+        items.Add(TrayMenuItem.Separator);
+        items.Add(new("Quit Media Shuttle", () => DispatcherQueue.TryEnqueue(ExitApplication)));
+        return items;
+    }
+
+    private string TrayStatus()
+    {
+        string status = TopStatusText.Text;
+        if (_busy && PercentText.Text is { Length: > 0 } percent && PhaseText.Text is { Length: > 0 } phase)
+        {
+            status = $"{phase} · {percent}";
+        }
+        return string.IsNullOrWhiteSpace(status) ? "Media Shuttle" : status;
+    }
+
+    private void CancelOperation()
+    {
+        if (_operationCancellation is null) return;
+        _operationCancellation.Cancel();
+        CancelButton.IsEnabled = false;
+        AddActivity("Stopping the transfer.");
     }
 
     private void SizeAndCenterWindow(IntPtr windowHandle)
@@ -335,7 +389,7 @@ public sealed partial class MainWindow : Window
         StatusPill.Visibility = compactTitleBar ? Visibility.Collapsed : Visibility.Visible;
         AppNameText.Visibility = iconOnlyTitleBar ? Visibility.Collapsed : Visibility.Visible;
         AppLogo.Width = 20;
-        AppLogo.Height = 20;
+        AppLogo.Height = 12.5;
         AppNameText.FontSize = 13;
         SettingsButton.Width = 30;
         SettingsButton.Height = 30;
@@ -568,12 +622,7 @@ public sealed partial class MainWindow : Window
         ActivitySection.Visibility = _settings.ShowActivityLog ? Visibility.Visible : Visibility.Collapsed;
         ScheduleActivityListHeightUpdate();
         StartupToggle.IsOn = StartupService.IsEnabled;
-        ThemeComboBox.SelectedIndex = _settings.Theme switch
-        {
-            "Light" => 1,
-            "Dark" => 2,
-            _ => 0
-        };
+        SelectThemeButton(_settings.Theme);
         ApplyTheme(_settings.Theme);
         if (_destinationAvailable)
         {
@@ -581,7 +630,7 @@ public sealed partial class MainWindow : Window
             await _stateStore.SaveSettingsAsync(_settings);
         }
         _settingsReady = true;
-        AddActivity("Watcher ready. Removable-media and volume identity checks active.");
+        AddActivity("Watching for camera cards.");
         _scanTimer.Start();
         await ScanCardsAsync();
 
@@ -589,8 +638,8 @@ public sealed partial class MainWindow : Window
         {
             ShowError(
                 "Destination unavailable",
-                "The saved destination could not be opened. Choose an available folder before transferring.");
-            AddActivity("Saved destination unavailable: " + destinationError.Message);
+                "The saved destination folder can't be opened. Choose a folder before transferring.");
+            AddActivity("Destination unavailable: " + destinationError.Message);
             SetTopStatus("Choose a destination", ErrorStatusBrush);
 
             // The window was already hidden immediately on launch (see the Activated handler
@@ -703,7 +752,7 @@ public sealed partial class MainWindow : Window
                 if (_unverifiableFileCount > 0)
                 {
                     AddActivity(
-                        $"{_unverifiableFileCount:N0} unrecognised file(s) on this card cannot be verified — erase stays locked.");
+                        $"{_unverifiableFileCount:N0} file(s) on this card aren't camera media, so they can't be verified. Erase stays locked.");
                 }
 
                 // A freshly inserted card is the one moment this app has something to say, so
@@ -714,9 +763,21 @@ public sealed partial class MainWindow : Window
                 {
                     ShowWindow();
                 }
-                if (_settings.AutoTransfer && _destinationAvailable && media.Count > 0)
+                if (_settings.AutoTransfer && media.Count > 0)
                 {
-                    await StartTransferAsync();
+                    if (_destinationAvailable)
+                    {
+                        await StartTransferAsync();
+                    }
+                    else
+                    {
+                        // Unattended, this used to do nothing at all: no transfer, and nothing to
+                        // say why when the reader came back to a card they expected to find copied.
+                        AddActivity("Automatic transfer skipped: the destination folder is unavailable.");
+                        ShowNotification(
+                            "Automatic transfer skipped",
+                            $"{card.VolumeLabel} was not copied because the destination folder is unavailable.");
+                    }
                 }
             }
         }
@@ -758,8 +819,8 @@ public sealed partial class MainWindow : Window
             if (_currentCard is null)
             {
                 ShowMessage(
-                    "No camera card found",
-                    "Connect a removable card containing DCIM, M4ROOT, or PRIVATE folders.",
+                    "No media source found",
+                    "Choose a source folder or connect a card containing DCIM, M4ROOT, or PRIVATE folders.",
                     InfoBarSeverity.Informational);
                 return;
             }
@@ -796,34 +857,37 @@ public sealed partial class MainWindow : Window
             _verifiedSession = result.Session;
             UpdateVerifiedState(_currentCard, result.Session);
             AddActivity(
-                $"Verified {result.Session.TotalFiles:N0} files — " +
-                $"{result.Session.CopiedCount:N0} copied, {result.Session.SkippedCount:N0} already safe.");
+                $"Verified {result.Session.TotalFiles:N0} files: " +
+                $"{result.Session.CopiedCount:N0} copied, {result.Session.SkippedCount:N0} already at the destination.");
             ShowMessage(
                 "Transfer verified",
-                $"{result.Session.TotalFiles:N0} files safe in the destination — " +
-                $"SHA-256 matched on every remaining camera file · finished {DateTime.Now:HH:mm:ss}",
+                $"{result.Session.TotalFiles:N0} files copied and checked with SHA-256.",
                 InfoBarSeverity.Success);
             ShowNotification(
                 "Transfer verified",
-                $"{result.Session.TotalFiles:N0} files match their destination copies.");
+                $"{result.Session.TotalFiles:N0} files copied and checked with SHA-256.");
         }
         catch (OperationCanceledException)
         {
             PhaseText.Text = "CANCELLED";
-            AddActivity("Transfer cancelled. Completed files remain safe; temporary files were removed.");
+            AddActivity("Transfer cancelled.");
             SetTopStatus("Transfer cancelled", WarningStatusBrush);
             ShowMessage(
                 "Transfer cancelled",
-                "Completed destination files were kept and temporary files were removed.",
+                "Files already copied were kept. Unfinished copies were removed.",
                 InfoBarSeverity.Warning);
         }
         catch (Exception exception)
         {
             PhaseText.Text = "NEEDS ATTENTION";
-            ShowError("Transfer failed", exception.Message);
-            AddActivity("Transfer failed: " + exception.Message);
-            await _logger.WriteAsync("Transfer failed: " + exception);
+            ShowError("Transfer stopped", exception.Message);
+            AddActivity("Transfer stopped: " + exception.Message);
+            await _logger.WriteAsync("Transfer stopped: " + exception);
             SetTopStatus("Needs attention", ErrorStatusBrush);
+
+            // Automatic transfers run with the window closed, so a failure needs to reach the
+            // reader the same way a success does.
+            ShowNotification("Transfer stopped", exception.Message);
         }
         finally
         {
@@ -879,7 +943,11 @@ public sealed partial class MainWindow : Window
         var phrase = new TextBox
         {
             Style = (Style)Application.Current.Resources["ShuttleTextBoxStyle"],
-            Header = "Type ERASE EVERYTHING to continue",
+            Header = new TextBlock
+            {
+                Text = "TYPE ERASE EVERYTHING TO CONFIRM",
+                Style = (Style)Application.Current.Resources["SectionLabelStyle"]
+            },
             PlaceholderText = "ERASE EVERYTHING"
         };
         var acknowledge = new CheckBox
@@ -887,26 +955,19 @@ public sealed partial class MainWindow : Window
             Style = (Style)Application.Current.Resources["ShuttleCheckBoxStyle"],
             Content = new TextBlock
             {
-                Text = $"I understand this removes all files and folders from {targetCard.RootPath}.",
+                Text = $"I understand this permanently deletes all files and folders on {targetCard.RootPath}.",
                 FontFamily = new FontFamily("Cascadia Mono"),
                 FontSize = 11,
                 TextWrapping = TextWrapping.Wrap
             }
         };
-        var accent = (Brush)palette["SpeedRedBrush"];
-        phrase.Resources["TextControlBorderBrushFocused"] = accent;
-        foreach (string state in new[] { "", "PointerOver", "Pressed" })
-        {
-            acknowledge.Resources[$"CheckBoxCheckBackgroundFillChecked{state}"] = accent;
-            acknowledge.Resources[$"CheckBoxCheckBackgroundStrokeChecked{state}"] = accent;
-        }
+        phrase.Resources["TextControlBorderBrushFocused"] = (Brush)palette["TextBrightBrush"];
         var content = new StackPanel { Spacing = 14 };
         content.Children.Add(new TextBlock
         {
             Text =
-                "Media Shuttle will re-verify every remaining media file against its destination copy. " +
-                "It will then remove all card content, including camera databases and non-media files. " +
-                "Windows-managed volume folders may be recreated automatically.",
+                "Every media file is checked against its copy again before anything is deleted. " +
+                "Everything else on the card is deleted too, including camera databases and sidecar files.",
             TextWrapping = TextWrapping.Wrap,
             FontFamily = new FontFamily("Cascadia Mono"),
             FontSize = 11,
@@ -920,9 +981,9 @@ public sealed partial class MainWindow : Window
             Style = (Style)Application.Current.Resources["ShuttleDialogStyle"],
             RequestedTheme = Root.ActualTheme,
             XamlRoot = Root.XamlRoot,
-            Title = "Erase everything on card?",
+            Title = $"Erase {targetCard.VolumeLabel}",
             Content = content,
-            PrimaryButtonText = "Erase card contents",
+            PrimaryButtonText = "Erase card",
             CloseButtonText = "Cancel",
             DefaultButton = ContentDialogButton.Close,
             IsPrimaryButtonEnabled = false
@@ -965,7 +1026,7 @@ public sealed partial class MainWindow : Window
         if (_busy)
         {
             ShowError(
-                "Operation in progress",
+                "Transfer in progress",
                 "A transfer started while the confirmation was open. Wait for it to finish, then erase the card.");
             AddActivity("Erase cancelled: a transfer started during confirmation.");
             return;
@@ -992,7 +1053,7 @@ public sealed partial class MainWindow : Window
         SetOperationControls(true, allowCancel: false);
         WipeButton.IsEnabled = false;
         SetTopStatus("Erase active", ActiveStatusBrush);
-        AddActivity("Erase approved. Re-verifying card media before deletion.");
+        AddActivity("Erasing. Checking every file against its copy first.");
 
         try
         {
@@ -1009,21 +1070,21 @@ public sealed partial class MainWindow : Window
             SessionTransferAgainButton.IsEnabled = false;
             UpdateEraseBadge(unlocked: false);
             SessionTransferAgainButton.Content = "No media found";
-            WipeDescriptionText.Text = "Erase complete. Connect another card or use this card in your camera.";
+            WipeDescriptionText.Text = "Card erased. Insert another card, or put this one back in your camera.";
             SetTopStatus("Card empty", VerifiedStatusBrush);
-            AddActivity($"Erase complete. {result.DeletedFiles:N0} files removed; post-erase scan empty.");
-            ShowNotification("Card contents erased", $"{result.DeletedFiles:N0} files removed successfully.");
+            AddActivity($"Erased {result.DeletedFiles:N0} files from the card.");
+            ShowNotification("Card erased", $"{result.DeletedFiles:N0} files deleted from the card.");
             ShowMessage(
-                "Card contents erased",
-                "The post-erase verification found no remaining media or user content.",
+                "Card erased",
+                $"{result.DeletedFiles:N0} files deleted from the card.",
                 InfoBarSeverity.Success);
         }
         catch (Exception exception)
         {
-            ShowError("Card erase did not complete", exception.Message);
-            AddActivity("Erase stopped: " + exception.Message);
-            await _logger.WriteAsync("Card erase failed: " + exception);
-            SetTopStatus("Erase needs attention", ErrorStatusBrush);
+            ShowError("Erase blocked", exception.Message);
+            AddActivity("Erase blocked: " + exception.Message);
+            await _logger.WriteAsync("Erase blocked: " + exception);
+            SetTopStatus("Erase blocked", ErrorStatusBrush);
             WipeButton.IsEnabled = _sourceAllowsErase && _unverifiableFileCount == 0 && _verifiedSession is not null;
         }
         finally
@@ -1086,6 +1147,11 @@ public sealed partial class MainWindow : Window
             CurrentFileText.Text = FormatCurrentActivity(progress);
         }
         PercentText.Text = $"{progress.Percent:0}%";
+        if (!complete)
+        {
+            // Like the percentage the macOS menu bar shows, so progress is visible from the tray.
+            _trayIcon?.SetTooltip($"Media Shuttle · {PhaseText.Text.ToLowerInvariant()} {PercentText.Text}");
+        }
 
         // An erase is measured in entries deleted, not bytes moved, and reports no byte total. Its
         // own progress is in the phase, percentage and current entry above; the copy figures do not
@@ -1171,14 +1237,14 @@ public sealed partial class MainWindow : Window
         try
         {
             StartupService.SetEnabled(StartupToggle.IsOn);
-            AddActivity(StartupToggle.IsOn ? "Windows startup enabled." : "Windows startup disabled.");
+            AddActivity(StartupToggle.IsOn ? "Media Shuttle will start with Windows." : "Media Shuttle won't start with Windows.");
         }
         catch (Exception exception)
         {
             _settingsReady = false;
             StartupToggle.IsOn = !StartupToggle.IsOn;
             _settingsReady = true;
-            ShowError("Startup setting failed", exception.Message);
+            ShowError("Couldn't change the startup setting", exception.Message);
         }
         await SaveSettingsFromControlsAsync();
     }
@@ -1192,7 +1258,7 @@ public sealed partial class MainWindow : Window
         WipeDescriptionText.Text = LockedEraseDescription();
         UpdateEraseBadge(unlocked: false);
         SetTopStatus("Media detected", ActiveStatusBrush);
-        ApplySessionFooter(null, "Ready to transfer and verify");
+        ApplySessionFooter(null, "Ready to transfer");
     }
 
     private void UpdateVerifiedState(CardInfo card, TransferSession session)
@@ -1215,7 +1281,7 @@ public sealed partial class MainWindow : Window
         SessionTransferAgainButton.IsEnabled = !_busy && _destinationAvailable;
         WipeButton.IsEnabled = canWipe && !_busy;
         WipeDescriptionText.Text = canWipe
-            ? $"Every remaining file on {card.RootPath} has a verified copy · typed confirmation required"
+            ? $"Every file on {card.RootPath} has a verified copy. You'll be asked to confirm."
             : LockedEraseDescription();
         UpdateEraseBadge(unlocked: canWipe);
         SetTopStatus($"{card.VolumeLabel} · TRANSFER VERIFIED", VerifiedStatusBrush);
@@ -1229,10 +1295,10 @@ public sealed partial class MainWindow : Window
         SessionTransferAgainButton.Content = "No media found";
         SessionTransferAgainButton.IsEnabled = false;
         WipeDescriptionText.Text = canWipe
-            ? "Unlocked. No supported media remains to re-verify."
+            ? "Unlocked. There are no photos or videos left to check."
             : _unverifiableFileCount > 0
                 ? LockedEraseDescription()
-                : "Locked until a transfer completes and every media file is verified.";
+                : "Nothing verified to erase yet.";
         UpdateEraseBadge(unlocked: canWipe);
         SetTopStatus(
             canWipe ? $"{card.VolumeLabel} CONNECTED" : "Card empty",
@@ -1241,12 +1307,12 @@ public sealed partial class MainWindow : Window
     }
 
     private string LockedEraseDescription() => !_sourceAllowsErase
-        ? "Locked — selected folders can be transferred, but only camera-card volumes can be erased."
+        ? "Erase works on camera cards only. Folders you choose can be transferred but not erased."
         : _unverifiableFileCount switch
     {
-        0 => "Locked until every remaining media file has a verified destination copy.",
-        1 => "Locked — one file on this card is not recognised camera media, so no transfer can verify it. Copy it off the card yourself.",
-        _ => $"Locked — {_unverifiableFileCount:N0} files on this card are not recognised camera media, so no transfer can verify them. Copy them off the card yourself."
+        0 => "Locked until every file on the card has a verified copy.",
+        1 => "Locked: one file on this card isn't camera media, so it can't be verified. Copy it off the card yourself.",
+        _ => $"Locked: {_unverifiableFileCount:N0} files on this card aren't camera media, so they can't be verified. Copy them off the card yourself."
     };
 
     private void UpdateCardSummary(CardInfo card)
@@ -1254,6 +1320,59 @@ public sealed partial class MainWindow : Window
         CardLabelText.Text = card.VolumeLabel;
         CardDetailText.Text = $"{card.RootPath} · {card.DriveType} media";
         UpdateCapacity(card);
+        UpdateEjectButton();
+    }
+
+    private bool CanEject => !_busy && _currentCard is not null && _currentCardEjectable;
+
+    private void UpdateEjectButton()
+    {
+        _currentCardEjectable = _currentCard is not null && CardEjector.IsEjectable(_currentCard.RootPath);
+        EjectButton.Visibility = _currentCardEjectable ? Visibility.Visible : Visibility.Collapsed;
+        EjectButton.IsEnabled = CanEject;
+    }
+
+    private async Task EjectCardAsync()
+    {
+        if (IsVisualPreview || !CanEject || _currentCard is not { } card)
+        {
+            return;
+        }
+
+        string label = card.VolumeLabel;
+        _busy = true;
+        SetOperationControls(true, allowCancel: false);
+        AddActivity($"Ejecting {label}.");
+        try
+        {
+            await Task.Run(() => CardEjector.Eject(card.RootPath));
+            if (_selectedSourceRoot is not null &&
+                Path.TrimEndingDirectorySeparator(_selectedSourceRoot).Equals(
+                    Path.TrimEndingDirectorySeparator(card.RootPath), StringComparison.OrdinalIgnoreCase))
+            {
+                _selectedSourceRoot = null;
+                _sourceAllowsErase = true;
+                AutomaticSourceButton.Visibility = Visibility.Collapsed;
+            }
+            // The presence tracker is left alone on purpose: it sees the card go, so putting it
+            // back counts as a new arrival, while a card Windows mounts again on its own does not
+            // start an automatic transfer.
+            ResetSourceState();
+            ShowMessage($"{label} ejected", "It is safe to remove the card.", InfoBarSeverity.Success);
+            AddActivity($"Ejected {label}. Safe to remove.");
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or Win32Exception)
+        {
+            ShowError($"{label} could not be ejected", exception.Message);
+            AddActivity($"Eject failed: {exception.Message}");
+            await _logger.WriteAsync("Eject failed: " + exception);
+        }
+        finally
+        {
+            _busy = false;
+            SetOperationControls(false, allowCancel: false);
+            _lastScanSignature = null;
+        }
     }
 
     private void UpdateCapacity(CardInfo? card)
@@ -1278,14 +1397,15 @@ public sealed partial class MainWindow : Window
     {
         ResetSessionDisplay();
         CardLabelText.Text = _selectedSourceRoot is null ? "No card connected" : "Source unavailable";
-        CardDetailText.Text = _selectedSourceRoot ?? "Insert a camera card or choose a media folder to begin.";
+        CardDetailText.Text = _selectedSourceRoot ?? "Insert a camera card, or choose a folder.";
         CardStatsText.Text = "—";
         UpdateCapacity(null);
         UpdateCardContents([]);
         SessionTransferAgainButton.Content = "Scan for media";
         SessionTransferAgainButton.IsEnabled = !_busy && _destinationAvailable;
         WipeButton.IsEnabled = false;
-        WipeDescriptionText.Text = "Locked until every remaining media file has a verified destination copy.";
+        UpdateEjectButton();
+        WipeDescriptionText.Text = "Locked until every file on the card has a verified copy.";
         UpdateEraseBadge(unlocked: false);
         SetTopStatus("Waiting for media", NeutralStatusBrush);
         ApplySessionFooter(null);
@@ -1365,7 +1485,7 @@ public sealed partial class MainWindow : Window
     {
         if (_lastSessionFilePath is null || !File.Exists(_lastSessionFilePath))
         {
-            ShowError("Report unavailable", "The saved transfer report could not be found.");
+            ShowError("Report unavailable", "The saved transfer report can't be found.");
             return;
         }
 
@@ -1392,7 +1512,8 @@ public sealed partial class MainWindow : Window
         ChooseSourceButton.IsEnabled = !active;
         AutomaticSourceButton.IsEnabled = !active;
         OpenFolderButton.IsEnabled = !active && _destinationAvailable;
-        ThemeComboBox.IsEnabled = !active;
+        foreach (RadioButton themeButton in ThemeButtons) themeButton.IsEnabled = !active;
+        EjectButton.IsEnabled = !active && CanEject;
         SettingsButton.IsEnabled = !active;
         WipeButton.IsEnabled = !active && _sourceAllowsErase && _unverifiableFileCount == 0 &&
             _verifiedSession is { Files.Count: > 0 };
@@ -1407,6 +1528,7 @@ public sealed partial class MainWindow : Window
     {
         TopStatusText.Text = text.ToUpperInvariant();
         StatusDot.Fill = brush;
+        _trayIcon?.SetTooltip($"Media Shuttle · {text}");
     }
 
     private void ShowMessage(string title, string message, InfoBarSeverity severity)
@@ -1532,7 +1654,7 @@ public sealed partial class MainWindow : Window
 
         if (_currentCard is not null && IsSameOrChild(selectedPath, _currentCard.RootPath))
         {
-            ShowError("Choose a different destination", "The destination cannot be on the connected source card.");
+            ShowError("Unsafe destination", "Choose a folder that is not on the connected camera card.");
             return;
         }
 
@@ -1541,8 +1663,8 @@ public sealed partial class MainWindow : Window
             Directory.Exists(Path.Combine(selectedPath, "PRIVATE")))
         {
             ShowError(
-                "Choose a different destination",
-                "That folder looks like a camera-card root. Choose a folder on the computer instead.");
+                "Unsafe destination",
+                "That folder looks like the top of a camera card. Choose a folder on this computer.");
             return;
         }
 
@@ -1561,8 +1683,8 @@ public sealed partial class MainWindow : Window
             await _stateStore.SaveSettingsAsync(_settings);
             AddActivity($"Destination changed to {_destinationRoot}");
             ShowMessage(
-                "Destination updated",
-                "New transfers will use the selected folder.",
+                "Destination changed",
+                "New transfers go to this folder.",
                 InfoBarSeverity.Success);
             await ScanCardsAsync(force: true);
         }
@@ -1574,16 +1696,33 @@ public sealed partial class MainWindow : Window
 
     private async Task UpdateThemeAsync()
     {
-        if (!_settingsReady || ThemeComboBox.SelectedItem is not ComboBoxItem item)
+        if (!_settingsReady || ThemeButtons.FirstOrDefault(button => button.IsChecked == true) is not RadioButton selected)
         {
             return;
         }
 
-        string theme = item.Tag?.ToString() ?? "System";
+        string theme = selected.Tag?.ToString() ?? "System";
+        if (theme == _settings.Theme)
+        {
+            return;
+        }
         _settings.Theme = theme;
         ApplyTheme(theme);
         await _stateStore.SaveSettingsAsync(_settings);
-        AddActivity($"Appearance set to {item.Content}.");
+    }
+
+    private RadioButton[] ThemeButtons => [ThemeSystemButton, ThemeLightButton, ThemeDarkButton];
+
+    private void SelectThemeButton(string theme)
+    {
+        foreach (RadioButton button in ThemeButtons)
+        {
+            button.IsChecked = string.Equals(button.Tag?.ToString(), theme, StringComparison.Ordinal);
+        }
+        if (ThemeButtons.All(button => button.IsChecked != true))
+        {
+            ThemeSystemButton.IsChecked = true;
+        }
     }
 
     private void ApplyTheme(string theme)
@@ -1668,7 +1807,7 @@ public sealed partial class MainWindow : Window
     {
         if (!_destinationAvailable)
         {
-            ShowError("Destination unavailable", "Choose an available destination folder first.");
+            ShowError("Destination unavailable", "Choose a destination folder first.");
             return;
         }
 
@@ -1710,8 +1849,8 @@ public sealed partial class MainWindow : Window
         {
             ShowWindow();
             ShowMessage(
-                "Operation in progress",
-                "Wait for the current operation to finish, or cancel the transfer before exiting.",
+                "Still working",
+                "Wait for the transfer or erase to finish, or cancel the transfer, before quitting.",
                 InfoBarSeverity.Warning);
             return;
         }
@@ -1730,7 +1869,7 @@ public sealed partial class MainWindow : Window
         }
         args.Cancel = true;
         _appWindow.Hide();
-        ShowNotification("Media Shuttle is still watching", "Click the tray icon to reopen the app.");
+        ShowNotification("Media Shuttle is still running", "It keeps watching for cards. Click the icon in the notification area to open it.");
     }
 
     private void ShowNotification(string title, string message)

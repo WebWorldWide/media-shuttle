@@ -27,7 +27,6 @@
     <ProjectReference Include="..\MediaShuttle.Core\MediaShuttle.Core.csproj" />
     <Manifest Include="$(ApplicationManifest)" />
     <None Update="Assets\MediaShuttle.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="Assets\ReferenceMark.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="Assets\ReferenceCard.png" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

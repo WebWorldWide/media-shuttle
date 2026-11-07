@@ -46,17 +46,16 @@ public sealed partial class MainWindow
         CardDetailText.Text = "/Volumes/LEXAR · Removable media";
         DestinationText.Text = "~/Desktop/Camera";
         CurrentFileText.Text = "LAST · /Volumes/LEXAR/DCIM/100MSDCF/DSC00381.JPG → Photos/JPEGs";
-        WipeDescriptionText.Text = "Every remaining file on /Volumes/LEXAR has a verified copy · typed confirmation required";
+        WipeDescriptionText.Text = "Every file on /Volumes/LEXAR has a verified copy. You'll be asked to confirm.";
         ThroughputText.Text = "78.7";
         CopiedCaption.Text = "files";
         SkippedCaption.Text = "re-verified";
-        ThemeComboBox.SelectedIndex = 2;
+        SelectThemeButton("Dark");
         _settingsReady = true;
         _activity.Clear();
-        _activity.Add("3:38:24 PM  Verification complete — 457 files match by SHA-256.");
+        _activity.Add("3:38:24 PM  Verified 457 files: 442 copied, 15 already at the destination.");
         _activity.Add("3:36:25 PM  Transfer started from /Volumes/LEXAR.");
-        ShowMessage("Transfer verified — 457 files safe in the destination",
-            "SHA-256 matched on every remaining camera file", InfoBarSeverity.Success);
+        ShowMessage("Transfer verified", "457 files copied and checked with SHA-256.", InfoBarSeverity.Success);
         ReportButton.IsEnabled = false;
         ActivityToggle.IsOn = true;
         _settings.ShowActivityLog = true;

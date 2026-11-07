@@ -44,6 +44,15 @@
                     <SolidColorBrush x:Key="MediaKindRawBrush" Color="#FF8B9198" />
                     <SolidColorBrush x:Key="MediaKindOtherBrush" Color="#FF5C6167" />
                     <SolidColorBrush x:Key="MediaKindVideoBrush" Color="#FF3F434A" />
+                    <SolidColorBrush x:Key="ShuttleFillBrush" Color="#0AFFFFFF" />
+                    <SolidColorBrush x:Key="ShuttleFillStrongBrush" Color="#17FFFFFF" />
+                    <SolidColorBrush x:Key="ShuttlePrimaryBorderBrush" Color="#2EFFFFFF" />
+                    <SolidColorBrush x:Key="ShuttlePrimaryBorderStrongBrush" Color="#4DFFFFFF" />
+                    <SolidColorBrush x:Key="ShuttleCardBrush" Color="#FF3E4450" />
+                    <SolidColorBrush x:Key="ShuttleTyreBrush" Color="#FF2F353F" />
+                    <SolidColorBrush x:Key="ShuttleYellowBrush" Color="#FFFFD016" />
+                    <SolidColorBrush x:Key="ShuttleGlassBrush" Color="#FF12151C" />
+                    <SolidColorBrush x:Key="ShuttleRimBrush" Color="#FFC9CED6" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#FFF0F0F2" />
@@ -81,6 +90,15 @@
                     <SolidColorBrush x:Key="MediaKindRawBrush" Color="#FF6B7178" />
                     <SolidColorBrush x:Key="MediaKindOtherBrush" Color="#FF9AA0A6" />
                     <SolidColorBrush x:Key="MediaKindVideoBrush" Color="#FFC7CCD1" />
+                    <SolidColorBrush x:Key="ShuttleFillBrush" Color="#0A000000" />
+                    <SolidColorBrush x:Key="ShuttleFillStrongBrush" Color="#17000000" />
+                    <SolidColorBrush x:Key="ShuttlePrimaryBorderBrush" Color="#2E000000" />
+                    <SolidColorBrush x:Key="ShuttlePrimaryBorderStrongBrush" Color="#4D000000" />
+                    <SolidColorBrush x:Key="ShuttleCardBrush" Color="#FF14161B" />
+                    <SolidColorBrush x:Key="ShuttleTyreBrush" Color="#FF0E1015" />
+                    <SolidColorBrush x:Key="ShuttleYellowBrush" Color="#FFF0B800" />
+                    <SolidColorBrush x:Key="ShuttleGlassBrush" Color="#FF12151C" />
+                    <SolidColorBrush x:Key="ShuttleRimBrush" Color="#FFC9CED6" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
             <SolidColorBrush x:Key="AccentFillColorDefaultBrush" Color="#FFD33B34" />
@@ -182,39 +200,125 @@
                 <Setter Property="Foreground" Value="{ThemeResource TextLabelBrush}" />
             </Style>
             <Style x:Key="ShuttleFlyoutStyle" TargetType="FlyoutPresenter" BasedOn="{StaticResource DefaultFlyoutPresenterStyle}">
-                <Setter Property="Background" Value="{ThemeResource PanelBackgroundBrush}" />
+                <Setter Property="Background" Value="{ThemeResource ContentBackgroundBrush}" />
+                <Setter Property="MaxWidth" Value="560" />
                 <Setter Property="Foreground" Value="{ThemeResource TextPrimaryBrush}" />
                 <Setter Property="BorderBrush" Value="{ThemeResource HairlineBrush}" />
                 <Setter Property="BorderThickness" Value="1" />
                 <Setter Property="CornerRadius" Value="0" />
-                <Setter Property="Padding" Value="14" />
+                <Setter Property="Padding" Value="20" />
                 <Setter Property="FontFamily" Value="Cascadia Mono" />
                 <Setter Property="FontSize" Value="10.5" />
             </Style>
-            <Style x:Key="ShuttleComboBoxStyle" TargetType="ComboBox" BasedOn="{StaticResource DefaultComboBoxStyle}">
+            <!-- Square switch from the macOS app: 32x16 track, 10px knob. Off is a faint fill with a
+                 border and a muted knob on the left; on is a solid TextBright track with the knob
+                 on the right in the background colour. Label on the left, switch on the right. -->
+            <Style x:Key="ShuttleToggleStyle" TargetType="ToggleSwitch">
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="Padding" Value="0,10" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Foreground" Value="{ThemeResource TextPrimaryBrush}" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="UseSystemFocusVisuals" Value="True" />
+                <Setter Property="FocusVisualMargin" Value="-4,4" />
+                <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ToggleSwitch">
+                    <Grid x:Name="RootGrid" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}" ColumnSpacing="10">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <ContentPresenter x:Name="HeaderContentPresenter" Content="{TemplateBinding Header}" ContentTemplate="{TemplateBinding HeaderTemplate}"
+                                          Foreground="{TemplateBinding Foreground}" FontSize="{TemplateBinding FontSize}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <Grid Grid.Column="1" Width="32" Height="16" VerticalAlignment="Center">
+                            <Rectangle x:Name="TrackOff" Fill="{ThemeResource ShuttleFillBrush}" Stroke="{ThemeResource ShuttlePrimaryBorderBrush}" StrokeThickness="1" />
+                            <Rectangle x:Name="TrackOn" Fill="{ThemeResource TextBrightBrush}" Opacity="0" />
+                            <Rectangle x:Name="KnobOff" Width="10" Height="10" Margin="3" HorizontalAlignment="Left" Fill="{ThemeResource TextMutedBrush}" />
+                            <Rectangle x:Name="KnobOn" Width="10" Height="10" Margin="3" HorizontalAlignment="Right" Fill="{ThemeResource ContentBackgroundBrush}" Opacity="0" />
+                        </Grid>
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal" />
+                                <VisualState x:Name="PointerOver"><VisualState.Setters>
+                                    <Setter Target="TrackOff.Fill" Value="{ThemeResource ShuttleFillStrongBrush}" />
+                                    <Setter Target="TrackOff.Stroke" Value="{ThemeResource ShuttlePrimaryBorderStrongBrush}" />
+                                </VisualState.Setters></VisualState>
+                                <VisualState x:Name="Pressed"><VisualState.Setters>
+                                    <Setter Target="TrackOff.Fill" Value="{ThemeResource ShuttleFillStrongBrush}" />
+                                    <Setter Target="TrackOff.Stroke" Value="{ThemeResource ShuttlePrimaryBorderStrongBrush}" />
+                                </VisualState.Setters></VisualState>
+                                <VisualState x:Name="Disabled"><VisualState.Setters>
+                                    <Setter Target="RootGrid.Opacity" Value="0.38" />
+                                </VisualState.Setters></VisualState>
+                            </VisualStateGroup>
+                            <VisualStateGroup x:Name="ToggleStates">
+                                <VisualStateGroup.Transitions>
+                                    <VisualTransition GeneratedDuration="0:0:0.12" />
+                                </VisualStateGroup.Transitions>
+                                <VisualState x:Name="Dragging" />
+                                <VisualState x:Name="Off" />
+                                <VisualState x:Name="On"><VisualState.Setters>
+                                    <Setter Target="TrackOn.Opacity" Value="1" />
+                                    <Setter Target="TrackOff.Opacity" Value="0" />
+                                    <Setter Target="KnobOff.Opacity" Value="0" />
+                                    <Setter Target="KnobOn.Opacity" Value="1" />
+                                </VisualState.Setters></VisualState>
+                            </VisualStateGroup>
+                            <VisualStateGroup x:Name="ContentStates">
+                                <VisualState x:Name="OffContent" />
+                                <VisualState x:Name="OnContent" />
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                    </Grid>
+                </ControlTemplate></Setter.Value></Setter>
+            </Style>
+            <!-- One option of the segmented picker from the macOS app: selected is a solid TextBright
+                 fill with background-coloured text. Segments sit in ShuttleSegmentedBorderStyle. -->
+            <Style x:Key="ShuttleSegmentStyle" TargetType="RadioButton">
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="VerticalAlignment" Value="Stretch" />
+                <Setter Property="Padding" Value="12,0" />
                 <Setter Property="FontFamily" Value="Cascadia Mono" />
-                <Setter Property="FontSize" Value="10.5" />
-                <Setter Property="MinHeight" Value="28" />
-                <Setter Property="Padding" Value="8,4" />
-                <Setter Property="Background" Value="{ThemeResource PanelFooterBackgroundBrush}" />
+                <Setter Property="FontSize" Value="11.5" />
                 <Setter Property="Foreground" Value="{ThemeResource TextBrightBrush}" />
-                <Setter Property="BorderBrush" Value="{ThemeResource HairlineBrush}" />
-                <Setter Property="CornerRadius" Value="0" />
+                <Setter Property="UseSystemFocusVisuals" Value="True" />
+                <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton">
+                    <Grid x:Name="RootGrid" Background="{ThemeResource ShuttleFillBrush}">
+                        <Rectangle x:Name="HoverFill" Fill="{ThemeResource ShuttleFillStrongBrush}" Opacity="0" />
+                        <Rectangle x:Name="SelectedFill" Fill="{ThemeResource TextBrightBrush}" Opacity="0" />
+                        <ContentPresenter x:Name="ContentPresenter" Content="{TemplateBinding Content}" Padding="{TemplateBinding Padding}"
+                                          Foreground="{TemplateBinding Foreground}" FontFamily="{TemplateBinding FontFamily}" FontSize="{TemplateBinding FontSize}"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CommonStates">
+                                <VisualState x:Name="Normal" />
+                                <VisualState x:Name="PointerOver"><VisualState.Setters>
+                                    <Setter Target="HoverFill.Opacity" Value="1" />
+                                </VisualState.Setters></VisualState>
+                                <VisualState x:Name="Pressed"><VisualState.Setters>
+                                    <Setter Target="HoverFill.Opacity" Value="1" />
+                                    <Setter Target="ContentPresenter.Opacity" Value="0.75" />
+                                </VisualState.Setters></VisualState>
+                                <VisualState x:Name="Disabled"><VisualState.Setters>
+                                    <Setter Target="RootGrid.Opacity" Value="0.38" />
+                                </VisualState.Setters></VisualState>
+                            </VisualStateGroup>
+                            <VisualStateGroup x:Name="CheckStates">
+                                <VisualState x:Name="Checked"><VisualState.Setters>
+                                    <Setter Target="SelectedFill.Opacity" Value="1" />
+                                    <Setter Target="ContentPresenter.Foreground" Value="{ThemeResource ContentBackgroundBrush}" />
+                                    <Setter Target="ContentPresenter.FontWeight" Value="SemiBold" />
+                                </VisualState.Setters></VisualState>
+                                <VisualState x:Name="Unchecked" />
+                                <VisualState x:Name="Indeterminate" />
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                    </Grid>
+                </ControlTemplate></Setter.Value></Setter>
             </Style>
-            <Style TargetType="ComboBoxItem" BasedOn="{StaticResource DefaultComboBoxItemStyle}">
-                <Setter Property="FontFamily" Value="Cascadia Mono" />
-                <Setter Property="FontSize" Value="10.5" />
-                <Setter Property="Foreground" Value="{ThemeResource TextBrightBrush}" />
+            <Style x:Key="ShuttleSegmentedBorderStyle" TargetType="Border">
+                <Setter Property="Height" Value="30" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="BorderBrush" Value="{ThemeResource ShuttlePrimaryBorderBrush}" />
                 <Setter Property="CornerRadius" Value="0" />
-            </Style>
-            <Style x:Key="ShuttleToggleStyle" TargetType="ToggleSwitch" BasedOn="{StaticResource DefaultToggleSwitchStyle}">
-                <Setter Property="CornerRadius" Value="0" />
-                <Setter Property="FontFamily" Value="Cascadia Mono" />
-                <Setter Property="FontSize" Value="10.5" />
-                <Setter Property="Foreground" Value="{ThemeResource TextSecondaryBrush}" />
-                <Setter Property="HeaderTemplate"><Setter.Value><DataTemplate>
-                    <TextBlock Text="{Binding}" FontFamily="Cascadia Mono" FontSize="10.5" FontWeight="Medium" Foreground="{ThemeResource TextBrightBrush}" />
-                </DataTemplate></Setter.Value></Setter>
             </Style>
             <Style x:Key="ShuttleTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource DefaultTextBoxStyle}">
                 <Setter Property="FontFamily" Value="Cascadia Mono" />
@@ -224,10 +328,72 @@
                 <Setter Property="BorderBrush" Value="{ThemeResource HairlineBrush}" />
                 <Setter Property="CornerRadius" Value="0" />
             </Style>
-            <Style x:Key="ShuttleCheckBoxStyle" TargetType="CheckBox" BasedOn="{StaticResource DefaultCheckBoxStyle}">
+            <!-- Square checkbox from the macOS app: 14px box, faint fill and border when off, solid
+                 TextBright with a background-coloured check mark when on. WinUI drives CheckBox
+                 through the CombinedStates names below. -->
+            <Style x:Key="ShuttleCheckBoxStyle" TargetType="CheckBox">
+                <Setter Property="MinWidth" Value="0" />
+                <Setter Property="MinHeight" Value="0" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="Background" Value="Transparent" />
                 <Setter Property="FontFamily" Value="Cascadia Mono" />
                 <Setter Property="FontSize" Value="11" />
                 <Setter Property="Foreground" Value="{ThemeResource TextSecondaryBrush}" />
+                <Setter Property="UseSystemFocusVisuals" Value="True" />
+                <Setter Property="FocusVisualMargin" Value="-4" />
+                <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="CheckBox">
+                    <Grid x:Name="RootGrid" Background="{TemplateBinding Background}" ColumnSpacing="9">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <Grid Width="14" Height="14" VerticalAlignment="Top" Margin="0,2,0,0">
+                            <Rectangle x:Name="BoxOff" Fill="{ThemeResource ShuttleFillBrush}" Stroke="{ThemeResource ShuttlePrimaryBorderBrush}" StrokeThickness="1" />
+                            <Rectangle x:Name="BoxOn" Fill="{ThemeResource TextBrightBrush}" Opacity="0" />
+                            <FontIcon x:Name="CheckGlyph" Glyph="&#xE73E;" FontSize="9" FontWeight="Bold" Foreground="{ThemeResource ContentBackgroundBrush}" Opacity="0" />
+                        </Grid>
+                        <ContentPresenter x:Name="ContentPresenter" Grid.Column="1" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          Foreground="{TemplateBinding Foreground}" FontFamily="{TemplateBinding FontFamily}" FontSize="{TemplateBinding FontSize}"
+                                          TextWrapping="Wrap" VerticalAlignment="Top" />
+                        <VisualStateManager.VisualStateGroups>
+                            <VisualStateGroup x:Name="CombinedStates">
+                                <VisualState x:Name="UncheckedNormal" />
+                                <VisualState x:Name="UncheckedPointerOver"><VisualState.Setters>
+                                    <Setter Target="BoxOff.Fill" Value="{ThemeResource ShuttleFillStrongBrush}" />
+                                    <Setter Target="BoxOff.Stroke" Value="{ThemeResource ShuttlePrimaryBorderStrongBrush}" />
+                                </VisualState.Setters></VisualState>
+                                <VisualState x:Name="UncheckedPressed"><VisualState.Setters>
+                                    <Setter Target="BoxOff.Fill" Value="{ThemeResource ShuttleFillStrongBrush}" />
+                                    <Setter Target="BoxOff.Stroke" Value="{ThemeResource ShuttlePrimaryBorderStrongBrush}" />
+                                </VisualState.Setters></VisualState>
+                                <VisualState x:Name="UncheckedDisabled"><VisualState.Setters>
+                                    <Setter Target="RootGrid.Opacity" Value="0.38" />
+                                </VisualState.Setters></VisualState>
+                                <VisualState x:Name="CheckedNormal"><VisualState.Setters>
+                                    <Setter Target="BoxOn.Opacity" Value="1" />
+                                    <Setter Target="CheckGlyph.Opacity" Value="1" />
+                                </VisualState.Setters></VisualState>
+                                <VisualState x:Name="CheckedPointerOver"><VisualState.Setters>
+                                    <Setter Target="BoxOn.Opacity" Value="1" />
+                                    <Setter Target="CheckGlyph.Opacity" Value="1" />
+                                </VisualState.Setters></VisualState>
+                                <VisualState x:Name="CheckedPressed"><VisualState.Setters>
+                                    <Setter Target="BoxOn.Opacity" Value="0.75" />
+                                    <Setter Target="CheckGlyph.Opacity" Value="1" />
+                                </VisualState.Setters></VisualState>
+                                <VisualState x:Name="CheckedDisabled"><VisualState.Setters>
+                                    <Setter Target="BoxOn.Opacity" Value="1" />
+                                    <Setter Target="CheckGlyph.Opacity" Value="1" />
+                                    <Setter Target="RootGrid.Opacity" Value="0.38" />
+                                </VisualState.Setters></VisualState>
+                                <VisualState x:Name="IndeterminateNormal" />
+                                <VisualState x:Name="IndeterminatePointerOver" />
+                                <VisualState x:Name="IndeterminatePressed" />
+                                <VisualState x:Name="IndeterminateDisabled"><VisualState.Setters>
+                                    <Setter Target="RootGrid.Opacity" Value="0.38" />
+                                </VisualState.Setters></VisualState>
+                            </VisualStateGroup>
+                        </VisualStateManager.VisualStateGroups>
+                    </Grid>
+                </ControlTemplate></Setter.Value></Setter>
             </Style>
             <Style x:Key="ShuttleDialogStyle" TargetType="ContentDialog" BasedOn="{StaticResource DefaultContentDialogStyle}">
                 <Setter Property="FontWeight" Value="Normal" />

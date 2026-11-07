@@ -2,6 +2,12 @@ using System.Runtime.InteropServices;
 
 namespace MediaShuttle;
 
+/// <summary>One line of the tray menu. A null <see cref="Text"/> is a separator.</summary>
+internal sealed record TrayMenuItem(string? Text, Action? Invoke = null, bool Enabled = true, bool Checked = false, bool IsDefault = false)
+{
+    public static TrayMenuItem Separator { get; } = new((string?)null);
+}
+
 internal sealed class TrayIconService : IDisposable
 {
     private const uint NimAdd = 0x00000000;
@@ -30,18 +36,14 @@ internal sealed class TrayIconService : IDisposable
     private const uint ImageIcon = 1;
     private const uint LrLoadFromFile = 0x0010;
     private const uint MfString = 0x0000;
+    private const uint MfGrayed = 0x0001;
+    private const uint MfChecked = 0x0008;
     private const uint MfSeparator = 0x0800;
     private const uint TpmRightButton = 0x0002;
     private const uint TpmReturnCommand = 0x0100;
     private readonly IntPtr _windowHandle;
     private readonly Action _open;
-    private readonly Action _openFolder;
-    private readonly Action _exit;
-    private readonly Action _chooseSource;
-    private readonly Action _transfer;
-    private readonly Func<bool> _canChooseSource;
-    private readonly Func<bool> _canTransfer;
-    private readonly Func<bool> _destinationAvailable;
+    private readonly Func<IReadOnlyList<TrayMenuItem>> _menu;
     private readonly SubclassProcedure _subclassProcedure;
     private readonly UIntPtr _subclassId = new(0x4D534855);
     private NotifyIconData _data;
@@ -52,23 +54,11 @@ internal sealed class TrayIconService : IDisposable
         IntPtr windowHandle,
         string iconPath,
         Action open,
-        Action openFolder,
-        Action exit,
-        Action chooseSource,
-        Action transfer,
-        Func<bool> canChooseSource,
-        Func<bool> canTransfer,
-        Func<bool> destinationAvailable)
+        Func<IReadOnlyList<TrayMenuItem>> menu)
     {
         _windowHandle = windowHandle;
         _open = open;
-        _openFolder = openFolder;
-        _exit = exit;
-        _chooseSource = chooseSource;
-        _transfer = transfer;
-        _canChooseSource = canChooseSource;
-        _canTransfer = canTransfer;
-        _destinationAvailable = destinationAvailable;
+        _menu = menu;
         _subclassProcedure = WindowSubclass;
         _iconHandle = LoadImage(IntPtr.Zero, iconPath, ImageIcon, 32, 32, LrLoadFromFile);
         if (_iconHandle == IntPtr.Zero)
@@ -86,6 +76,22 @@ internal sealed class TrayIconService : IDisposable
         ShellNotifyIcon(NimAdd, ref _data);
         _data.VersionOrTimeout = NotifyIconVersion4;
         ShellNotifyIcon(NimSetVersion, ref _data);
+    }
+
+    /// <summary>The text shown when the pointer rests on the icon, e.g. progress during a transfer.</summary>
+    public void SetTooltip(string text)
+    {
+        text = Truncate(text, 127);
+        if (_disposed || text == _data.Tooltip)
+        {
+            return;
+        }
+        _data.Tooltip = text;
+        NotifyIconData update = CreateData(NifTip);
+        update.WindowHandle = _windowHandle;
+        update.IconId = 1;
+        update.Tooltip = text;
+        ShellNotifyIcon(NimModify, ref update);
     }
 
     public void ShowNotification(string title, string message)
@@ -140,16 +146,30 @@ internal sealed class TrayIconService : IDisposable
             anchorY = point.Y;
         }
 
+        IReadOnlyList<TrayMenuItem> items = _menu();
         IntPtr menu = CreatePopupMenu();
         try
         {
-            AppendMenu(menu, MfString, 1, "Open Media Shuttle");
-            AppendMenu(menu, _canChooseSource() ? MfString : 1u, 4, "Choose source…");
-            AppendMenu(menu, _canTransfer() ? MfString : 1u, 5,
-                _destinationAvailable() ? "Transfer and verify" : "Choose destination…");
-            AppendMenu(menu, MfString, 2, "Open destination folder");
-            AppendMenu(menu, MfSeparator, 0, null);
-            AppendMenu(menu, MfString, 3, "Exit");
+            for (int index = 0; index < items.Count; index++)
+            {
+                TrayMenuItem item = items[index];
+                if (item.Text is null)
+                {
+                    AppendMenu(menu, MfSeparator, 0, null);
+                    continue;
+                }
+                uint flags = MfString |
+                             (item.Enabled && item.Invoke is not null ? 0 : MfGrayed) |
+                             (item.Checked ? MfChecked : 0);
+                // Command 0 means "dismissed", so item n is command n + 1. A literal "&" would
+                // underline the next letter, as in a card called "A&B".
+                AppendMenu(menu, flags, (uint)index + 1, item.Text.Replace("&", "&&"));
+                if (item.IsDefault)
+                {
+                    SetMenuDefaultItem(menu, (uint)index + 1, 0);
+                }
+            }
+
             SetForegroundWindow(_windowHandle);
             uint command = TrackPopupMenu(
                 menu,
@@ -164,23 +184,9 @@ internal sealed class TrayIconService : IDisposable
             // click outside it is swallowed instead of dismissing the menu. The documented fix is to
             // post any message to the owner once tracking ends.
             PostMessage(_windowHandle, WmNull, UIntPtr.Zero, IntPtr.Zero);
-            switch (command)
+            if (command >= 1 && command <= items.Count && items[(int)command - 1] is { Enabled: true, Invoke: { } invoke })
             {
-                case 1:
-                    _open();
-                    break;
-                case 2:
-                    _openFolder();
-                    break;
-                case 3:
-                    _exit();
-                    break;
-                case 4:
-                    _chooseSource();
-                    break;
-                case 5:
-                    _transfer();
-                    break;
+                invoke();
             }
         }
         finally
@@ -290,6 +296,10 @@ internal sealed class TrayIconService : IDisposable
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool DestroyMenu(IntPtr menu);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetMenuDefaultItem(IntPtr menu, uint item, uint byPosition);
 
     [DllImport("user32.dll")]
     private static extern uint TrackPopupMenu(IntPtr menu, uint flags, int x, int y, int reserved, IntPtr window, IntPtr rectangle);

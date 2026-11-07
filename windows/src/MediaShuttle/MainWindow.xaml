@@ -4,7 +4,22 @@
         <Grid Background="{ThemeResource ChromeBackgroundBrush}">
             <Grid x:Name="AppHeader" Margin="20,0,160,0">
                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                <Image x:Name="AppLogo" Width="15" Height="15" Source="Assets/ReferenceMark.png" VerticalAlignment="Center" AutomationProperties.Name="Media Shuttle logo" />
+                <!-- The macOS AppMark: the SD card drawn as a shuttle bus, on its 840 x 524 grid. -->
+                <Viewbox x:Name="AppLogo" Width="20" Height="12.5" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+                    <Canvas Width="840" Height="524">
+                        <Path Data="M20,20 L690,20 L820,150 L820,434 L20,434 Z" Fill="{ThemeResource ShuttleCardBrush}" Stroke="{ThemeResource ShuttleCardBrush}" StrokeThickness="40" StrokeLineJoin="Round" />
+                        <Rectangle Canvas.Left="46" Canvas.Top="46" Width="512" Height="362" RadiusX="54" RadiusY="54" Fill="{ThemeResource ShuttleYellowBrush}" />
+                        <Rectangle Canvas.Left="80" Canvas.Top="80" Width="130" Height="128" RadiusX="14" RadiusY="14" Fill="{ThemeResource ShuttleGlassBrush}" />
+                        <Rectangle Canvas.Left="237" Canvas.Top="80" Width="130" Height="128" RadiusX="14" RadiusY="14" Fill="{ThemeResource ShuttleGlassBrush}" />
+                        <Rectangle Canvas.Left="394" Canvas.Top="80" Width="130" Height="128" RadiusX="14" RadiusY="14" Fill="{ThemeResource ShuttleGlassBrush}" />
+                        <Path Data="M602,80 L692,80 L748,136 L748,208 L602,208 Z" Fill="{ThemeResource ShuttleGlassBrush}" Stroke="{ThemeResource ShuttleGlassBrush}" StrokeThickness="22" StrokeLineJoin="Round" />
+                        <Rectangle Canvas.Left="80" Canvas.Top="278" Width="444" Height="20" RadiusX="10" RadiusY="10" Fill="{ThemeResource ShuttleGlassBrush}" />
+                        <Ellipse Canvas.Left="104" Canvas.Top="356" Width="168" Height="168" Fill="{ThemeResource ShuttleTyreBrush}" />
+                        <Ellipse Canvas.Left="602" Canvas.Top="356" Width="168" Height="168" Fill="{ThemeResource ShuttleTyreBrush}" />
+                        <Ellipse Canvas.Left="146" Canvas.Top="398" Width="84" Height="84" Fill="{ThemeResource ShuttleRimBrush}" />
+                        <Ellipse Canvas.Left="644" Canvas.Top="398" Width="84" Height="84" Fill="{ThemeResource ShuttleRimBrush}" />
+                    </Canvas>
+                </Viewbox>
                 <TextBlock x:Name="AppNameText" Grid.Column="1" Text="MEDIA SHUTTLE" FontFamily="Cascadia Mono" FontSize="13" FontWeight="SemiBold" CharacterSpacing="110" Foreground="{ThemeResource TextPrimaryBrush}" VerticalAlignment="Center" Margin="10,0,0,0" />
                 <Border x:Name="StatusPill" Grid.Column="2" Style="{StaticResource BadgeBorderStyle}" Background="{ThemeResource PanelBackgroundBrush}" Padding="7,3" Margin="12,0,0,0" AutomationProperties.Name="Media status" AutomationProperties.LiveSetting="Polite">
                     <StackPanel Orientation="Horizontal" Spacing="6"><Rectangle x:Name="StatusDot" Width="5" Height="5" Fill="{ThemeResource TextMutedBrush}" VerticalAlignment="Center" /><TextBlock x:Name="TopStatusText" Text="WAITING FOR MEDIA" FontFamily="Cascadia Mono" FontSize="12" CharacterSpacing="74" Foreground="{ThemeResource TextSecondaryBrush}" VerticalAlignment="Center" /></StackPanel>
@@ -12,58 +27,44 @@
                 <Button x:Name="SettingsButton" Grid.Column="4" Width="22" Height="22" Padding="0" Style="{StaticResource ChromeIconButtonStyle}" ToolTipService.ToolTip="Settings" AutomationProperties.Name="Open settings">
                     <Button.Flyout>
                     <Flyout Placement="BottomEdgeAlignedRight" FlyoutPresenterStyle="{StaticResource ShuttleFlyoutStyle}">
-                        <StackPanel Width="340" Spacing="14">
-                            <StackPanel.Resources>
-                                <ResourceDictionary>
-                                    <ResourceDictionary.ThemeDictionaries>
-                                        <ResourceDictionary x:Key="Default">
-                                            <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="#FFFF6A5E" />
-                                            <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="#FFEF5A50" />
-                                            <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="#FFD33B34" />
-                                        </ResourceDictionary>
-                                        <ResourceDictionary x:Key="Light">
-                                            <SolidColorBrush x:Key="ToggleSwitchFillOn" Color="#FFD33B34" />
-                                            <SolidColorBrush x:Key="ToggleSwitchFillOnPointerOver" Color="#FFC9342D" />
-                                            <SolidColorBrush x:Key="ToggleSwitchFillOnPressed" Color="#FFB92D27" />
-                                        </ResourceDictionary>
-                                    </ResourceDictionary.ThemeDictionaries>
-                                </ResourceDictionary>
-                            </StackPanel.Resources>
-                            <StackPanel Spacing="4">
-                                <TextBlock Text="Settings" FontSize="17" FontWeight="SemiBold" Foreground="{ThemeResource TextPrimaryBrush}" />
-                                <TextBlock Text="Transfer behavior and appearance" FontFamily="Cascadia Mono" FontSize="12" Foreground="{ThemeResource TextMutedBrush}" />
-                            </StackPanel>
-                            <StackPanel Spacing="7">
+                        <StackPanel Width="480" Spacing="18">
+                            <StackPanel Spacing="8">
                                 <TextBlock Text="APPEARANCE" Style="{StaticResource SectionLabelStyle}" />
-                                <ComboBox x:Name="ThemeComboBox" Style="{StaticResource ShuttleComboBoxStyle}" HorizontalAlignment="Stretch" AutomationProperties.Name="Application theme">
-                                    <ComboBox.Resources>
-                                        <ResourceDictionary>
-                                            <CornerRadius x:Key="OverlayCornerRadius">0</CornerRadius>
-                                            <ResourceDictionary.ThemeDictionaries>
-                                                <ResourceDictionary x:Key="Default">
-                                                    <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#FF1A1A1D" />
-                                                    <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#1FFFFFFF" />
-                                                    <SolidColorBrush x:Key="ComboBoxItemPillFillBrush" Color="#FFFF6A5E" />
-                                                </ResourceDictionary>
-                                                <ResourceDictionary x:Key="Light">
-                                                    <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="#FFFBFBFC" />
-                                                    <SolidColorBrush x:Key="ComboBoxDropDownBorderBrush" Color="#1F000000" />
-                                                    <SolidColorBrush x:Key="ComboBoxItemPillFillBrush" Color="#FFD33B34" />
-                                                </ResourceDictionary>
-                                            </ResourceDictionary.ThemeDictionaries>
-                                        </ResourceDictionary>
-                                    </ComboBox.Resources>
-                                    <ComboBoxItem Content="Use Windows setting" Tag="System" />
-                                    <ComboBoxItem Content="Light" Tag="Light" />
-                                    <ComboBoxItem Content="Dark" Tag="Dark" />
-                                </ComboBox>
+                                <Border Style="{StaticResource PanelBorderStyle}"><StackPanel Padding="12,0">
+                                    <Grid Padding="0,10" ColumnSpacing="10">
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                        <TextBlock Text="Theme" FontSize="13" Foreground="{ThemeResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                        <Border Grid.Column="1" Width="240" Style="{StaticResource ShuttleSegmentedBorderStyle}">
+                                            <Grid AutomationProperties.Name="Theme">
+                                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="1" /><ColumnDefinition Width="*" /><ColumnDefinition Width="1" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                                <RadioButton x:Name="ThemeSystemButton" Grid.Column="0" GroupName="Theme" Tag="System" Content="System" Style="{StaticResource ShuttleSegmentStyle}" />
+                                                <Rectangle Grid.Column="1" Fill="{ThemeResource ShuttlePrimaryBorderBrush}" />
+                                                <RadioButton x:Name="ThemeLightButton" Grid.Column="2" GroupName="Theme" Tag="Light" Content="Light" Style="{StaticResource ShuttleSegmentStyle}" />
+                                                <Rectangle Grid.Column="3" Fill="{ThemeResource ShuttlePrimaryBorderBrush}" />
+                                                <RadioButton x:Name="ThemeDarkButton" Grid.Column="4" GroupName="Theme" Tag="Dark" Content="Dark" Style="{StaticResource ShuttleSegmentStyle}" />
+                                            </Grid>
+                                        </Border>
+                                    </Grid>
+                                </StackPanel></Border>
                             </StackPanel>
-                            <Rectangle Height="1" Fill="{ThemeResource HairlineBrush}" />
-                            <ToggleSwitch x:Name="AutoTransferToggle" Style="{StaticResource ShuttleToggleStyle}" Header="Automatic transfer" OffContent="Off" OnContent="On" />
-                            <ToggleSwitch x:Name="GroupByDateToggle" Style="{StaticResource ShuttleToggleStyle}" Header="Date folders" OffContent="Flat folders" OnContent="YYYY-MM-DD" />
-                            <ToggleSwitch x:Name="NotificationsToggle" Style="{StaticResource ShuttleToggleStyle}" Header="Completion notifications" OffContent="Off" OnContent="On" />
-                            <ToggleSwitch x:Name="ActivityToggle" Style="{StaticResource ShuttleToggleStyle}" Header="Activity log" OffContent="Hidden" OnContent="Shown" />
-                            <ToggleSwitch x:Name="StartupToggle" Style="{StaticResource ShuttleToggleStyle}" Header="Start with Windows" OffContent="Off" OnContent="On" />
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="TRANSFER" Style="{StaticResource SectionLabelStyle}" />
+                                <Border Style="{StaticResource PanelBorderStyle}"><StackPanel Padding="12,0">
+                                    <ToggleSwitch x:Name="AutoTransferToggle" Style="{StaticResource ShuttleToggleStyle}" Header="Transfer automatically when a card is inserted" />
+                                    <Rectangle Height="1" Fill="{ThemeResource HairlineSoftBrush}" />
+                                    <ToggleSwitch x:Name="GroupByDateToggle" Style="{StaticResource ShuttleToggleStyle}" Header="Sort into dated folders (YYYY-MM-DD)" />
+                                    <Rectangle Height="1" Fill="{ThemeResource HairlineSoftBrush}" />
+                                    <ToggleSwitch x:Name="NotificationsToggle" Style="{StaticResource ShuttleToggleStyle}" Header="Notify when a transfer or erase finishes" />
+                                    <Rectangle Height="1" Fill="{ThemeResource HairlineSoftBrush}" />
+                                    <ToggleSwitch x:Name="ActivityToggle" Style="{StaticResource ShuttleToggleStyle}" Header="Show the activity log" />
+                                </StackPanel></Border>
+                            </StackPanel>
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="SYSTEM" Style="{StaticResource SectionLabelStyle}" />
+                                <Border Style="{StaticResource PanelBorderStyle}"><StackPanel Padding="12,0">
+                                    <ToggleSwitch x:Name="StartupToggle" Style="{StaticResource ShuttleToggleStyle}" AutomationProperties.Name="Start with Windows"><ToggleSwitch.Header><StackPanel Spacing="2"><TextBlock Text="Start with Windows" FontSize="13" Foreground="{ThemeResource TextPrimaryBrush}" TextWrapping="Wrap" /><TextBlock Text="Starts in the notification area and watches for cards." FontFamily="Cascadia Mono" FontSize="11" Foreground="{ThemeResource TextMutedBrush}" TextWrapping="Wrap" /></StackPanel></ToggleSwitch.Header></ToggleSwitch>
+                                </StackPanel></Border>
+                            </StackPanel>
                         </StackPanel>
                     </Flyout>
                 </Button.Flyout>
@@ -94,6 +95,9 @@
                                 <Button.KeyboardAccelerators><KeyboardAccelerator Key="O" Modifiers="Control" /></Button.KeyboardAccelerators>
                             </Button>
                             <Button x:Name="AutomaticSourceButton" Content="Use auto-detect" Style="{StaticResource ShuttleSecondaryButtonStyle}" Visibility="Collapsed" HorizontalAlignment="Stretch" />
+                            <Button x:Name="EjectButton" Content="Eject" Style="{StaticResource ShuttleSecondaryButtonStyle}" Visibility="Collapsed" HorizontalAlignment="Stretch" ToolTipService.ToolTip="Eject the card so it's safe to remove" AutomationProperties.Name="Eject card">
+                                <Button.KeyboardAccelerators><KeyboardAccelerator Key="E" Modifiers="Control" /></Button.KeyboardAccelerators>
+                            </Button>
                         </StackPanel>
                         <Rectangle Grid.Row="3" Height="1" Fill="{ThemeResource HairlineBrush}" VerticalAlignment="Center" />
                         <StackPanel Grid.Row="4" Spacing="12">
