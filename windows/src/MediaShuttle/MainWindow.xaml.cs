@@ -627,7 +627,7 @@ public sealed partial class MainWindow : Window
         if (_destinationAvailable)
         {
             _settings.DestinationRoot = _destinationRoot;
-            await _stateStore.SaveSettingsAsync(_settings);
+            await SaveSettingsAsync();
         }
         _settingsReady = true;
         AddActivity("Watching for camera cards.");
@@ -1224,7 +1224,24 @@ public sealed partial class MainWindow : Window
         _settings.ShowNotifications = NotificationsToggle.IsOn;
         _settings.ShowActivityLog = ActivityToggle.IsOn;
         _settings.DestinationRoot = _destinationRoot;
-        await _stateStore.SaveSettingsAsync(_settings);
+        await SaveSettingsAsync();
+    }
+
+    /// <summary>
+    /// Settings save from event handlers, where an exception would end the app. A failed save
+    /// leaves the choice in effect for this session and says so.
+    /// </summary>
+    private async Task SaveSettingsAsync()
+    {
+        try
+        {
+            await _stateStore.SaveSettingsAsync(_settings);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            ShowError("Settings could not be saved", exception.Message);
+            await _logger.WriteAsync("Settings could not be saved: " + exception);
+        }
     }
 
     private async Task UpdateStartupAsync()
@@ -1708,7 +1725,7 @@ public sealed partial class MainWindow : Window
         }
         _settings.Theme = theme;
         ApplyTheme(theme);
-        await _stateStore.SaveSettingsAsync(_settings);
+        await SaveSettingsAsync();
     }
 
     private RadioButton[] ThemeButtons => [ThemeSystemButton, ThemeLightButton, ThemeDarkButton];

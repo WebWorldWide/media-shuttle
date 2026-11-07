@@ -37,6 +37,7 @@ jobs:
           $crash = Join-Path $env:TEMP 'MediaShuttle-VisualPreview/startup-crash.log'
           if (Test-Path $crash) { Get-Content $crash; throw 'The app crashed on start.' }
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: windows-preview
           path: ${{ runner.temp }}/preview

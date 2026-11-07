@@ -12,6 +12,10 @@ public sealed class StateStore
         Converters = { new JsonStringEnumConverter() }
     };
 
+    // Every toggle in Settings saves on its own, so two saves can overlap; replacing settings.json
+    // from both at once fails with "access denied" on Windows. One write at a time.
+    private readonly SemaphoreSlim _writeLock = new(1, 1);
+
     public StateStore(string rootPath)
     {
         RootPath = Path.GetFullPath(rootPath);
@@ -99,7 +103,7 @@ public sealed class StateStore
         return null;
     }
 
-    private static async Task SaveJsonAtomicAsync<T>(
+    private async Task SaveJsonAtomicAsync<T>(
         string path,
         T value,
         CancellationToken cancellationToken)
@@ -107,6 +111,7 @@ public sealed class StateStore
         string directory = Path.GetDirectoryName(path)!;
         Directory.CreateDirectory(directory);
         string temporaryPath = path + ".tmp-" + Guid.NewGuid().ToString("N");
+        await _writeLock.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             await using (var stream = new FileStream(
@@ -122,13 +127,34 @@ public sealed class StateStore
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
 
-            File.Move(temporaryPath, path, true);
+            // Antivirus and the search indexer briefly hold a file they have just seen written,
+            // which makes the replace fail with "access denied". A short retry rides that out.
+            for (int attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    File.Move(temporaryPath, path, true);
+                    break;
+                }
+                catch (Exception exception) when (
+                    attempt < 5 && exception is UnauthorizedAccessException or IOException)
+                {
+                    await Task.Delay(40 * attempt, cancellationToken).ConfigureAwait(false);
+                }
+            }
         }
         finally
         {
-            if (File.Exists(temporaryPath))
+            try
             {
-                File.Delete(temporaryPath);
+                if (File.Exists(temporaryPath))
+                {
+                    File.Delete(temporaryPath);
+                }
+            }
+            finally
+            {
+                _writeLock.Release();
             }
         }
     }
