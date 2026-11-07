@@ -1,0 +1,42 @@
+name: Windows UI preview
+
+# Renders the Windows app's window, Settings and erase dialog to PNGs (DEBUG preview mode with
+# sample data, no card access) so the UI can be checked from a machine without Windows.
+on:
+  push:
+    paths:
+      - "windows/src/MediaShuttle/**"
+      - ".github/workflows/windows-preview.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Build Debug
+        shell: pwsh
+        run: dotnet build windows/src/MediaShuttle/MediaShuttle.csproj -c Debug -r win-x64 -p:Platform=x64
+      - name: Render
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem windows/src/MediaShuttle/bin -Recurse -Filter MediaShuttle.exe | Select-Object -First 1
+          if (-not $exe) { throw 'MediaShuttle.exe was not built.' }
+          $out = Join-Path $env:RUNNER_TEMP 'preview'
+          $process = Start-Process -FilePath $exe.FullName -ArgumentList '--screenshot', '--render-preview', "`"$out`"" -PassThru
+          if (-not $process.WaitForExit(120000)) { $process.Kill(); throw 'The preview did not finish in two minutes.' }
+          Get-ChildItem $out
+          if (Test-Path "$out/render-error.txt") { Get-Content "$out/render-error.txt"; throw 'Rendering failed.' }
+          $crash = Join-Path $env:TEMP 'MediaShuttle-VisualPreview/startup-crash.log'
+          if (Test-Path $crash) { Get-Content $crash; throw 'The app crashed on start.' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-preview
+          path: ${{ runner.temp }}/preview

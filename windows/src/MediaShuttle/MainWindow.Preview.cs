@@ -1,6 +1,11 @@
+using System.Runtime.InteropServices.WindowsRuntime;
 using MediaShuttle.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
+using Microsoft.UI.Xaml.Media.Imaging;
+using Windows.Graphics.Imaging;
+using Windows.Storage.Streams;
 
 namespace MediaShuttle;
 
@@ -63,6 +68,96 @@ public sealed partial class MainWindow
         _settingsReady = true;
         UpdateResponsiveLayout();
         ScheduleActivityListHeightUpdate();
+        if (PreviewOutputDirectory is { } directory)
+        {
+            DispatcherQueue.TryEnqueue(async () => await RenderPreviewAsync(directory));
+        }
+    }
+
+    /// <summary>
+    /// <c>--screenshot --render-preview DIR</c> saves the window, Settings and the erase dialog as
+    /// PNGs in both themes, then quits. CI runs it so the controls can be checked without a PC.
+    /// </summary>
+    private static string? PreviewOutputDirectory
+    {
+        get
+        {
+            string[] arguments = Environment.GetCommandLineArgs();
+            int index = Array.FindIndex(arguments, argument => argument.Equals("--render-preview", StringComparison.OrdinalIgnoreCase));
+            return index >= 0 && index + 1 < arguments.Length ? arguments[index + 1] : null;
+        }
+    }
+
+    private async Task RenderPreviewAsync(string directory)
+    {
+        try
+        {
+            Directory.CreateDirectory(directory);
+            AutoTransferToggle.IsOn = true;
+            GroupByDateToggle.IsOn = false;
+            NotificationsToggle.IsOn = true;
+            foreach (string theme in new[] { "Dark", "Light" })
+            {
+                ApplyTheme(theme);
+                SelectThemeButton(theme);
+                await Task.Delay(1200);
+                await SaveElementAsync(Root, Path.Combine(directory, $"window-{theme.ToLowerInvariant()}.png"));
+
+                var settings = (Flyout)SettingsButton.Flyout;
+                settings.ShowAt(SettingsButton);
+                await Task.Delay(900);
+                await SaveElementAsync((UIElement)settings.Content, Path.Combine(directory, $"settings-{theme.ToLowerInvariant()}.png"));
+                settings.Hide();
+                await Task.Delay(400);
+
+                ContentDialog dialog = CreateEraseConfirmationDialog(_currentCard!);
+                _ = dialog.ShowAsync();
+                await Task.Delay(900);
+                if (dialog.Content is StackPanel content)
+                {
+                    foreach (UIElement child in content.Children)
+                    {
+                        if (child is TextBox phrase) phrase.Text = "ERASE EVERYTHING";
+                        if (child is CheckBox acknowledge) acknowledge.IsChecked = true;
+                    }
+                }
+                await Task.Delay(500);
+                foreach (var popup in VisualTreeHelper.GetOpenPopupsForXamlRoot(Root.XamlRoot))
+                {
+                    if (popup.Child is FrameworkElement { ActualWidth: > 0 } child)
+                    {
+                        await SaveElementAsync(child, Path.Combine(directory, $"erase-{theme.ToLowerInvariant()}.png"));
+                    }
+                }
+                dialog.Hide();
+                await Task.Delay(400);
+            }
+        }
+        catch (Exception exception)
+        {
+            await File.WriteAllTextAsync(Path.Combine(directory, "render-error.txt"), exception.ToString());
+        }
+        finally
+        {
+            _allowClose = true;
+            Application.Current.Exit();
+        }
+    }
+
+    private static async Task SaveElementAsync(UIElement element, string path)
+    {
+        var bitmap = new RenderTargetBitmap();
+        await bitmap.RenderAsync(element);
+        IBuffer pixels = await bitmap.GetPixelsAsync();
+        using var stream = new InMemoryRandomAccessStream();
+        BitmapEncoder encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, stream);
+        encoder.SetPixelData(
+            BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied,
+            (uint)bitmap.PixelWidth, (uint)bitmap.PixelHeight, 96, 96, pixels.ToArray());
+        await encoder.FlushAsync();
+        stream.Seek(0);
+        await using FileStream file = File.Create(path);
+        await stream.AsStreamForRead().CopyToAsync(file);
     }
 #endif
 }
