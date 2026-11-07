@@ -142,6 +142,17 @@ public sealed partial class MainWindow
         }
     }
 
+    private static T? FindVisualChild<T>(DependencyObject parent, string name) where T : FrameworkElement
+    {
+        for (int index = 0; index < VisualTreeHelper.GetChildrenCount(parent); index++)
+        {
+            DependencyObject child = VisualTreeHelper.GetChild(parent, index);
+            if (child is T element && element.Name == name) return element;
+            if (FindVisualChild<T>(child, name) is T descendant) return descendant;
+        }
+        return null;
+    }
+
     private static async Task SaveElementAsync(UIElement element, string path)
     {
         var bitmap = new RenderTargetBitmap();

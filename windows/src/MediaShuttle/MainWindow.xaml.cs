@@ -985,18 +985,13 @@ public sealed partial class MainWindow : Window
             Content = content,
             PrimaryButtonText = "Erase card",
             CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Close,
+            // No default button: WinUI paints the default one in the system accent colour, and
+            // nothing in an erase dialog should happen on Enter. Escape still cancels.
+            DefaultButton = ContentDialogButton.None,
             IsPrimaryButtonEnabled = false
         };
         dialog.Resources["ContentDialogTopOverlay"] = palette["PanelBackgroundBrush"];
         dialog.Resources["ContentDialogSeparatorBorderBrush"] = palette["HairlineBrush"];
-        dialog.Opened += (_, _) =>
-        {
-            // WinUI replaces the default action's style when the dialog opens.
-            // Keep Cancel as the safe default while restoring the app's button appearance.
-            if (FindVisualChild<Button>(dialog, "CloseButton") is Button closeButton)
-                closeButton.Style = (Style)Application.Current.Resources["ShuttleSecondaryButtonStyle"];
-        };
         void Validate(object? sender, object args) =>
             dialog.IsPrimaryButtonEnabled =
                 !IsVisualPreview && phrase.Text.Trim().Equals("ERASE EVERYTHING", StringComparison.Ordinal) &&
@@ -1005,17 +1000,6 @@ public sealed partial class MainWindow : Window
         acknowledge.Checked += Validate;
         acknowledge.Unchecked += Validate;
         return dialog;
-    }
-
-    private static T? FindVisualChild<T>(DependencyObject parent, string name) where T : FrameworkElement
-    {
-        for (int index = 0; index < VisualTreeHelper.GetChildrenCount(parent); index++)
-        {
-            DependencyObject child = VisualTreeHelper.GetChild(parent, index);
-            if (child is T element && element.Name == name) return element;
-            if (FindVisualChild<T>(child, name) is T descendant) return descendant;
-        }
-        return null;
     }
 
     private async Task WipeConfirmedCardAsync(CardInfo targetCard, TransferSession targetSession)
