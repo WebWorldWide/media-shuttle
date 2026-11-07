@@ -1,0 +1,39 @@
+app-id: io.github.adamnolle.MediaShuttle
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+command: media-shuttle
+finish-args:
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # Camera cards are mounted under these by udisks and most desktops, and erase writes to them.
+  - --filesystem=/run/media
+  - --filesystem=/media
+  - --filesystem=/mnt
+  # The default destination is ~/Desktop/Camera, and any folder can be chosen.
+  - --filesystem=home
+  # "Launch at login" writes an autostart entry.
+  - --filesystem=xdg-config/autostart:create
+modules:
+  - name: media-shuttle
+    buildsystem: simple
+    build-commands:
+      # The GNOME runtime provides Python, PyGObject, GTK 3 and pycairo. Fail the build if it ever stops.
+      - python3 -c "import cairo, gi; gi.require_version('Gtk', '3.0'); from gi.repository import Gtk; import gi._gi_cairo"
+      - install -Dm644 -t /app/share/media-shuttle/media_shuttle media_shuttle/*.py
+      - install -Dm644 -t /app/share/media-shuttle/assets assets/*
+      - install -Dm755 media-shuttle /app/share/media-shuttle/media-shuttle
+      - install -d /app/bin
+      - ln -s ../share/media-shuttle/media-shuttle /app/bin/media-shuttle
+      - install -Dm644 flatpak/io.github.adamnolle.MediaShuttle.desktop -t /app/share/applications
+      - install -Dm644 flatpak/io.github.adamnolle.MediaShuttle.metainfo.xml -t /app/share/metainfo
+      - install -Dm644 assets/media-shuttle.svg /app/share/icons/hicolor/scalable/apps/io.github.adamnolle.MediaShuttle.svg
+    sources:
+      - type: dir
+        path: ..
+        skip:
+          - tests
+          - flatpak/.flatpak-builder
+          - flatpak/build

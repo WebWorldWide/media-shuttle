@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Media Shuttle
+Comment=Copy camera cards and check every file
+Exec=media-shuttle
+Icon=io.github.adamnolle.MediaShuttle
+Terminal=false
+Categories=Graphics;Photography;
+Keywords=camera;card;SD;import;ingest;backup;
+StartupNotify=true
+StartupWMClass=media-shuttle

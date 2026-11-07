@@ -1,0 +1,124 @@
+name: Linux Flatpak
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths:
+      - "linux/**"
+      - ".github/workflows/linux-flatpak.yml"
+  pull_request:
+    paths:
+      - "linux/**"
+      - ".github/workflows/linux-flatpak.yml"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to attach the bundles to (leave empty to only build)
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Flatpak (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+    timeout-minutes: 30
+    env:
+      APP_ID: io.github.adamnolle.MediaShuttle
+      MANIFEST: linux/flatpak/io.github.adamnolle.MediaShuttle.yml
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Validate desktop entry and metadata
+        run: |
+          desktop-file-validate linux/flatpak/$APP_ID.desktop
+          appstreamcli validate --no-net --explain linux/flatpak/$APP_ID.metainfo.xml
+
+      - name: Name the bundle
+        id: name
+        shell: bash
+        run: |
+          ref="${{ inputs.tag || github.ref_name }}"
+          if [[ "$ref" == v* ]]; then version="$ref"; else version="dev"; fi
+          echo "bundle=MediaShuttle-$version-linux-${{ matrix.arch }}.flatpak" >> "$GITHUB_OUTPUT"
+
+      - name: Build bundle
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: ${{ steps.name.outputs.bundle }}
+          manifest-path: ${{ env.MANIFEST }}
+          arch: ${{ matrix.arch }}
+          cache-key: flatpak-builder-${{ matrix.arch }}-${{ github.sha }}
+          upload-artifact: true
+
+      - name: Install and start the app headless
+        shell: bash
+        run: |
+          command -v xvfb-run >/dev/null || dnf install -y xorg-x11-server-Xvfb xorg-x11-xauth which
+          command -v dbus-run-session >/dev/null || dnf install -y dbus-daemon
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak install --user -y --noninteractive "${{ steps.name.outputs.bundle }}"
+          # Prove the installed app imports and builds its window inside the sandbox.
+          dbus-run-session -- xvfb-run -a timeout 60 flatpak run --user \
+            --command=python3 "$APP_ID" - <<'PY'
+          import sys
+          sys.path.insert(0, "/app/share/media-shuttle")
+          from gi.repository import GLib
+          from media_shuttle.app import ShuttleApplication
+
+          app = ShuttleApplication()
+          opened = []
+          def check():
+              opened.append(app.get_active_window() is not None)
+              app.quit()
+              return False
+          GLib.timeout_add_seconds(3, check)
+          app.run([])
+          raise SystemExit(0 if opened and opened[0] else "Media Shuttle window did not open")
+          PY
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.arch }}
+          path: ${{ steps.name.outputs.bundle }}
+
+  release:
+    name: Attach bundles to release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          merge-multiple: true
+      - name: Upload with checksums
+        run: |
+          shasum -a 256 MediaShuttle-*.flatpak > SHA256SUMS-linux.txt
+          cat SHA256SUMS-linux.txt
+          # The tag may be pushed before the release exists; wait for whichever workflow creates it.
+          for attempt in $(seq 1 30); do
+            gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 && break
+            sleep 20
+          done
+          gh release upload "$TAG" MediaShuttle-*.flatpak SHA256SUMS-linux.txt -R "$GITHUB_REPOSITORY" --clobber

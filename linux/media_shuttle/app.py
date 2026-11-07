@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 import threading
 from datetime import datetime
@@ -759,9 +760,17 @@ class ShuttleWindow(Gtk.ApplicationWindow):
         def toggle_startup(widget):
             if widget.get_active():
                 autostart.parent.mkdir(parents=True, exist_ok=True)
-                launcher = Path(__file__).resolve().parents[1] / "media-shuttle"
-                executable = str(launcher).replace('"', '\\"')
-                autostart.write_text("[Desktop Entry]\nType=Application\nName=Media Shuttle\nExec=\"" + executable + "\"\nTerminal=false\n")
+                flatpak_id = os.environ.get("FLATPAK_ID")
+                if flatpak_id:
+                    # Inside the sandbox the launcher's path doesn't exist on the host, which is
+                    # where the session starts autostart entries.
+                    command = f"flatpak run {flatpak_id}"
+                else:
+                    launcher = Path(__file__).resolve().parents[1] / "media-shuttle"
+                    command = '"' + str(launcher).replace('"', '\\"') + '"'
+                autostart.write_text(
+                    "[Desktop Entry]\nType=Application\nName=Media Shuttle\nExec=" + command + "\nTerminal=false\n"
+                )
             else:
                 autostart.unlink(missing_ok=True)
         startup.connect("toggled", toggle_startup)

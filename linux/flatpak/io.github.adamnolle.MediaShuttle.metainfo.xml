@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.adamnolle.MediaShuttle</id>
+  <name>Media Shuttle</name>
+  <summary>Copy camera cards and check every file</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="io.github.adamnolle">
+    <name>Adam Nolle</name>
+  </developer>
+  <description>
+    <p>
+      Media Shuttle copies photos and videos off a camera card into separate folders for JPEG, RAW and video,
+      and checks each copy against the card with SHA-256. Erase stays locked until every file on the card
+      has a verified copy.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.adamnolle.MediaShuttle.desktop</launchable>
+  <url type="homepage">https://mediashuttle.webworldwide.online</url>
+  <url type="bugtracker">https://github.com/WebWorldWide/media-shuttle/issues</url>
+  <url type="vcs-browser">https://github.com/WebWorldWide/media-shuttle</url>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/WebWorldWide/media-shuttle/main/docs/linux-preview.png</image>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.2.3" date="2026-11-07"/>
+  </releases>
+</component>
