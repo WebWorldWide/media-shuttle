@@ -16,6 +16,13 @@
   <meta property="og:image" content="https://mediashuttle.webworldwide.online/assets/promo-thumbnail.jpg">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="stylesheet" href="style.css">
+  <script>
+    // Cloudflare serves HTTPS for this host, but the zone doesn't force it, so plain http:// would
+    // otherwise stay on an unencrypted page.
+    if (location.protocol === "http:" && location.hostname === "mediashuttle.webworldwide.online") {
+      location.replace("https://" + location.host + location.pathname + location.search + location.hash);
+    }
+  </script>
 </head>
 <body>
   <header class="nav">
