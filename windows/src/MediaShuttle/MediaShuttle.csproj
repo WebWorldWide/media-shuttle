@@ -15,9 +15,9 @@
     <SelfContained>true</SelfContained>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>0.2.5</Version>
-    <FileVersion>0.2.5.0</FileVersion>
-    <AssemblyVersion>0.2.5.0</AssemblyVersion>
+    <Version>0.2.6</Version>
+    <FileVersion>0.2.6.0</FileVersion>
+    <AssemblyVersion>0.2.6.0</AssemblyVersion>
     <Company>Media Shuttle</Company>
     <Product>Media Shuttle</Product>
     <Description>Verified camera-card ingest and erase for Windows</Description>
