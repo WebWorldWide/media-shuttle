@@ -94,6 +94,14 @@ final class AppModel {
     @ObservationIgnored private var lastScanSignature: String?
     @ObservationIgnored private var lastProgressAppliedAt: Date?
     @ObservationIgnored private var photosTask: Task<Void, Never>?
+    /// When bytes last moved, whatever the redraw throttle did with the report. Read on the one-second
+    /// tick to tell a slow drive from a dead one.
+    @ObservationIgnored private var lastProgressReceivedAt: Date?
+    @ObservationIgnored private var stallWatchTask: Task<Void, Never>?
+    @ObservationIgnored private var stallAnnounced = false
+    /// Set when the reader chose to quit during an operation; the app finishes quitting once the
+    /// cancelled operation has cleaned up.
+    @ObservationIgnored private var quitWhenOperationEnds = false
 
     init() {
         let applicationSupport = (try? StateStore.defaultRootURL())
@@ -122,6 +130,90 @@ final class AppModel {
         scanTask?.cancel()
         operationTask?.cancel()
         photosTask?.cancel()
+        stallWatchTask?.cancel()
+    }
+
+    /// Seconds since the running operation last moved any bytes, once that pause is long enough to
+    /// notice. Nil while idle, or while data is flowing.
+    var stallSeconds: Int? {
+        guard isBusy, let last = lastProgressReceivedAt else { return nil }
+        let seconds = Int(Date.now.timeIntervalSince(last))
+        return seconds >= Self.stallNoticeSeconds ? seconds : nil
+    }
+
+    private static let stallNoticeSeconds = 8
+    private static let stallLogSeconds = 30
+
+    /// A rough time to go, from the average rate so far. Nil until there is enough to go on.
+    var estimatedSecondsRemaining: TimeInterval? {
+        guard isBusy, progress.totalBytes > 0, progress.processedBytes > 0,
+              let rate = throughputBytesPerSecond, rate > 0,
+              progress.phase == .copying || progress.phase == .verifying || progress.phase == .checkingDuplicate
+        else { return nil }
+        let remaining = Double(progress.totalBytes - progress.processedBytes)
+        return max(0, remaining / rate)
+    }
+
+    /// What the running operation is called, for the quit confirmation. Nil when nothing is running.
+    var runningOperationName: String? {
+        guard operationTask != nil else { return nil }
+        switch progress.phase {
+        case .erasing, .reVerifying: return "erase"
+        default: return "transfer"
+        }
+    }
+
+    /// Quit was confirmed during an operation. Cancel it, let it remove its unfinished copy, and
+    /// finish quitting from the operation's completion.
+    func cancelOperationAndQuit() {
+        guard operationTask != nil else {
+            NSApp.reply(toApplicationShouldTerminate: true)
+            return
+        }
+        quitWhenOperationEnds = true
+        operationTask?.cancel()
+    }
+
+    private func operationDidEnd() {
+        operationEndedAt = .now
+        isBusy = false
+        operationTask = nil
+        stallWatchTask?.cancel()
+        stallWatchTask = nil
+        lastProgressReceivedAt = nil
+        // Reading the card does not move its free space, so let the next tick re-derive state
+        // rather than have the skip-unchanged check hold on to what was true before this ran.
+        lastScanSignature = nil
+        if quitWhenOperationEnds {
+            quitWhenOperationEnds = false
+            NSApp.reply(toApplicationShouldTerminate: true)
+        }
+    }
+
+    /// Logs once per quiet spell when an operation has moved nothing for a while, so an unattended
+    /// transfer that waited on a sleeping or unplugged drive leaves a trace in the activity log.
+    private func startStallWatch() {
+        stallWatchTask?.cancel()
+        stallAnnounced = false
+        lastProgressReceivedAt = .now
+        stallWatchTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                guard !Task.isCancelled, let self, self.isBusy else { return }
+                guard let last = self.lastProgressReceivedAt else { continue }
+                let quiet = Int(Date.now.timeIntervalSince(last))
+                if quiet >= Self.stallLogSeconds, !self.stallAnnounced {
+                    self.stallAnnounced = true
+                    self.addActivity(
+                        "Nothing has moved for \(quiet) s. The card reader or destination drive may be slow, "
+                            + "asleep or disconnected. The transfer is still waiting."
+                    )
+                } else if quiet < Self.stallNoticeSeconds, self.stallAnnounced {
+                    self.stallAnnounced = false
+                    self.addActivity("Data is moving again.")
+                }
+            }
+        }
     }
 
     var isAddingToPhotos: Bool { photosProgress != nil }
@@ -273,19 +365,29 @@ final class AppModel {
         let scanned = scan.media
         let storedSession = await stateStore.latestVerifiedSession(for: card)
         guard chosenSource == selectedSourceURL, destination == destinationURL, !isBusy else { return }
+        // Eligibility stats every destination copy, and the volume checks stat the card. On a USB
+        // drive that has spun down, or a network share that has dropped, each of those can block
+        // for seconds; done on the main actor they froze the whole window.
+        let cardRootChanged = currentCard?.rootURL != card.rootURL
+        let checks = await Task.detached(priority: .utility) {
+            (
+                session: storedSession.flatMap { $0.isEligibleForErase(card: card, media: scanned) ? $0 : nil },
+                ejectable: cardRootChanged ? CardDetector.isEjectableVolumeRoot(card.rootURL) : nil,
+                allowsErase: chosenSource == nil || CardDetector.isCameraCardVolume(card.rootURL)
+            )
+        }.value
+        guard chosenSource == selectedSourceURL, destination == destinationURL, !isBusy else { return }
         lastScanSignature = signature
-        let session = storedSession.flatMap {
-            $0.isEligibleForErase(card: card, media: scanned) ? $0 : nil
-        }
+        let session = checks.session
         let sessionWasInvalidated = verifiedSession != nil && session == nil
-        if currentCard?.rootURL != card.rootURL {
-            currentCardIsEjectable = CardDetector.isEjectableVolumeRoot(card.rootURL)
+        if let ejectable = checks.ejectable {
+            currentCardIsEjectable = ejectable
         }
         currentCard = card
         if banner?.title == "Source unavailable" || banner?.title == "Source scan failed" {
             banner = nil
         }
-        sourceAllowsErase = chosenSource == nil || CardDetector.isCameraCardVolume(card.rootURL)
+        sourceAllowsErase = checks.allowsErase
         media = scanned
         unverifiableFileCount = scan.unverifiableFiles.count
         verifiedSession = session
@@ -366,6 +468,7 @@ final class AppModel {
         statusTone = .active
         primaryActionTitle = "Transferring…"
         addActivity("Transfer started from \(card.rootURL.path)")
+        startStallWatch()
         let destination = destinationURL
         let groupByDate = settings.groupByDate
 
@@ -429,13 +532,7 @@ final class AppModel {
                 // reader the same way a success does.
                 await sendNotification(title: "Transfer stopped", body: error.localizedDescription)
             }
-            operationEndedAt = .now
-            isBusy = false
-            operationTask = nil
-
-            // Reading the card does not move its free space, so let the next tick re-derive state
-            // rather than have the skip-unchanged check hold on to what was true before this ran.
-            lastScanSignature = nil
+            operationDidEnd()
             if verifiedSession == nil { primaryActionTitle = "Transfer and verify" }
         }
     }
@@ -489,6 +586,7 @@ final class AppModel {
         topStatus = "ERASE ACTIVE"
         statusTone = .active
         addActivity("Erasing. Checking every file against its copy first.")
+        startStallWatch()
 
         operationTask = Task { [weak self] in
             guard let self else { return }
@@ -522,10 +620,7 @@ final class AppModel {
                 statusTone = .error
                 addActivity("Erase blocked: \(error.localizedDescription)")
             }
-            operationEndedAt = .now
-            isBusy = false
-            operationTask = nil
-            lastScanSignature = nil
+            operationDidEnd()
         }
     }
 
@@ -878,6 +973,7 @@ final class AppModel {
     private static let progressRedrawInterval: TimeInterval = 1.0 / 15
 
     private func apply(_ update: OperationProgress) {
+        lastProgressReceivedAt = .now
         let isContinuation = update.phase.isContinuous
             && update.phase == progress.phase
             && update.currentItem == progress.currentItem

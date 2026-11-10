@@ -85,8 +85,27 @@ public actor WipeService {
                 currentDestinationFolder: folder
             ))
 
-            let sourceHash = try await FileHasher.sha256(at: item.sourceURL)
-            let destinationHash = try await FileHasher.sha256(at: record.destinationURL)
+            // Two full reads per file; the bar shows the pair as one 0...1 pass so a long video does
+            // not look stuck.
+            let counter = ProgressCounter()
+            let base = OperationProgress(
+                phase: .reVerifying,
+                currentItem: item.fileName,
+                completedFiles: verifiedFiles,
+                totalFiles: currentMedia.count,
+                processedBytes: processedBytes,
+                totalBytes: totalBytes,
+                currentSourceURL: item.sourceURL,
+                currentDestinationFolder: folder
+            )
+            let (sourceHash, destinationHash) = try await withPeriodicReports(
+                of: base, counter: counter, total: item.size * 2, to: progress
+            ) {
+                (
+                    try await FileHasher.sha256(at: item.sourceURL) { counter.value = $0 },
+                    try await FileHasher.sha256(at: record.destinationURL) { counter.value = item.size + $0 }
+                )
+            }
             guard sourceHash.caseInsensitiveCompare(record.sha256) == .orderedSame,
                   destinationHash.caseInsensitiveCompare(record.sha256) == .orderedSame else {
                 throw MediaShuttleError.eraseBlocked(

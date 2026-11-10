@@ -158,12 +158,18 @@ final class MediaShuttleCoreTests: XCTestCase {
         try write("metadata", to: appleDouble)
         try write("camera database", to: cardRoot.appendingPathComponent("INDEX.XML"))
 
+        // An unfinished copy from an earlier run sits where the app writes; a look-alike at the
+        // destination root is not the app's and is left alone.
         let ownedPartial = destinationRoot.appendingPathComponent(
-            "orphan.JPG.partial-0123456789abcdef0123456789abcdef"
+            "Photos/JPEGs/orphan.JPG.partial-0123456789abcdef0123456789abcdef"
         )
         let unrelatedPartial = destinationRoot.appendingPathComponent("keep.partial-draft")
+        let rootLookalike = destinationRoot.appendingPathComponent(
+            "mine.JPG.partial-0123456789abcdef0123456789abcdef"
+        )
         try write("stale", to: ownedPartial)
         try write("keep", to: unrelatedPartial)
+        try write("mine", to: rootLookalike)
 
         let store = try StateStore(rootURL: stateRoot)
         let logger = try AppLogger(stateRoot: stateRoot)
@@ -203,6 +209,7 @@ final class MediaShuttleCoreTests: XCTestCase {
         )
         XCTAssertFalse(FileManager.default.fileExists(atPath: ownedPartial.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: unrelatedPartial.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: rootLookalike.path))
 
         let duplicate = try await transfer.transfer(
             card: card,
@@ -633,6 +640,110 @@ final class MediaShuttleCoreTests: XCTestCase {
         XCTAssertEqual(latest?.sessionID, result.session.sessionID)
     }
 
+    // MARK: Slow or failing drives
+
+    func testWriteFailureNamesTheFileAndSaysWhy() async throws {
+        try write("jpeg-one", to: cardRoot.appendingPathComponent("DCIM/100MSDCF/DSC00001.JPG"))
+        let jpegFolder = destinationRoot.appendingPathComponent("Photos/JPEGs", isDirectory: true)
+        try FileManager.default.createDirectory(at: jpegFolder, withIntermediateDirectories: true)
+        // Read-only folder: the first write fails the way an unplugged or write-protected drive does.
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: jpegFolder.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: jpegFolder.path) }
+
+        let store = try StateStore(rootURL: stateRoot)
+        let logger = try AppLogger(stateRoot: stateRoot)
+        let transfer = TransferService(stateStore: store, logger: logger)
+        let card = CardInfo(
+            rootURL: cardRoot, volumeLabel: "CARD", volumeID: "v", totalBytes: 1, freeBytes: 1, driveType: "Removable media"
+        )
+
+        do {
+            _ = try await transfer.transfer(card: card, destinationRoot: destinationRoot, groupByDate: false)
+            XCTFail("expected the write to fail")
+        } catch let error as MediaShuttleError {
+            guard case .writeFailed(let file, _) = error else {
+                return XCTFail("expected writeFailed, got \(error)")
+            }
+            XCTAssertEqual(file, "DSC00001.JPG")
+            let text = error.localizedDescription
+            XCTAssertTrue(text.contains("DSC00001.JPG"), text)
+            XCTAssertFalse(text.contains("The file couldn’t be saved"), text)
+        }
+    }
+
+    func testPlainReasonExplainsPosixCodes() {
+        func wrapped(_ code: Int32) -> Error {
+            let posix = NSError(domain: NSPOSIXErrorDomain, code: Int(code))
+            return NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileWriteUnknown.rawValue,
+                           userInfo: [NSUnderlyingErrorKey: posix])
+        }
+        XCTAssertTrue(MediaShuttleError.plainReason(for: wrapped(ENOSPC)).contains("full"))
+        XCTAssertTrue(MediaShuttleError.plainReason(for: wrapped(ENXIO)).contains("disconnected"))
+        XCTAssertTrue(MediaShuttleError.plainReason(for: wrapped(EIO)).contains("hardware"))
+        XCTAssertTrue(MediaShuttleError.plainReason(for: wrapped(EACCES)).contains("allow"))
+        XCTAssertTrue(MediaShuttleError.plainReason(for: wrapped(EFBIG)).contains("too large"))
+        // Unknown codes fall back to Foundation's text, with a full stop.
+        XCTAssertTrue(MediaShuttleError.plainReason(for: wrapped(EINTR)).hasSuffix("."))
+    }
+
+    func testCopyReportsPerFileProgressThroughVerification() async throws {
+        try write(String(repeating: "x", count: 300_000), to: cardRoot.appendingPathComponent("DCIM/100MSDCF/DSC00001.JPG"))
+        let store = try StateStore(rootURL: stateRoot)
+        let logger = try AppLogger(stateRoot: stateRoot)
+        let transfer = TransferService(stateStore: store, logger: logger)
+        let card = CardInfo(
+            rootURL: cardRoot, volumeLabel: "CARD", volumeID: "v", totalBytes: 1, freeBytes: 1, driveType: "Removable media"
+        )
+        let seen = ProgressSink()
+        _ = try await transfer.transfer(card: card, destinationRoot: destinationRoot, groupByDate: false) { update in
+            await seen.append(update)
+        }
+        let updates = await seen.updates
+        let copying = updates.filter { $0.phase == .copying }
+        XCTAssertEqual(copying.first?.currentItemFraction, 0)
+        XCTAssertEqual(copying.last?.currentItemFraction, 1)
+        XCTAssertTrue(updates.contains { $0.phase == .verifying && $0.currentItemFraction == 0 })
+        XCTAssertTrue(updates.allSatisfy { ($0.currentItemFraction ?? 0) <= 1 })
+    }
+
+    /// Runs the real transfer against real drives. Skipped unless both paths are given:
+    ///
+    ///     MEDIA_SHUTTLE_REAL_SOURCE=/Volumes/CARD MEDIA_SHUTTLE_REAL_DESTINATION=/Volumes/Drive/Test \
+    ///         swift test --package-path macos --filter testRealDrives
+    func testRealDrives() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard let sourcePath = environment["MEDIA_SHUTTLE_REAL_SOURCE"],
+              let destinationPath = environment["MEDIA_SHUTTLE_REAL_DESTINATION"] else {
+            throw XCTSkip("set MEDIA_SHUTTLE_REAL_SOURCE and MEDIA_SHUTTLE_REAL_DESTINATION to run")
+        }
+        let destination = URL(fileURLWithPath: destinationPath, isDirectory: true)
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        let card = try CardDetector.selectedSource(at: URL(fileURLWithPath: sourcePath, isDirectory: true))
+        let store = try StateStore(rootURL: stateRoot)
+        let logger = try AppLogger(stateRoot: stateRoot)
+        let transfer = TransferService(stateStore: store, logger: logger)
+
+        let seen = ProgressSink()
+        let started = Date.now
+        let result = try await transfer.transfer(card: card, destinationRoot: destination, groupByDate: false) { update in
+            await seen.append(update)
+        }
+        let updates = await seen.updates
+        let elapsed = Date.now.timeIntervalSince(started)
+        let verifying = updates.filter { $0.phase == .verifying && ($0.currentItemFraction ?? 0) > 0 }
+        print("REAL: \(result.session.totalFiles) files, \(result.session.copiedCount) copied, "
+              + "\(result.session.skippedCount) already safe, \(ByteCountFormatter.string(fromByteCount: result.session.totalBytes, countStyle: .file)) "
+              + "in \(Int(elapsed)) s; \(updates.count) progress reports, \(verifying.count) mid-verify")
+        print("REAL LOG:\n" + ((try? String(contentsOf: logger.logURL, encoding: .utf8)) ?? ""))
+        XCTAssertEqual(result.session.status, "Verified")
+        XCTAssertEqual(result.session.copiedCount + result.session.skippedCount, result.session.totalFiles)
+    }
+
+    private actor ProgressSink {
+
+        var updates: [OperationProgress] = []
+        func append(_ update: OperationProgress) { updates.append(update) }
+    }
     private func write(_ string: String, to url: URL) throws {
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(),

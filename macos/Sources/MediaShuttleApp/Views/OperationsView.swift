@@ -167,7 +167,7 @@ private struct SessionPanel: View {
                 caption: rate.map { "\($0.unit)/s avg" } ?? "idle"
             )
             MetricDivider()
-            Metric(label: "ELAPSED", value: Self.elapsed(model.elapsed), caption: "min:sec")
+            Metric(label: "ELAPSED", value: Self.elapsed(model.elapsed), caption: elapsedCaption)
         }
         // Without this the 1px dividers, being vertically flexible, stretch the
         // whole panel to fill the window.
@@ -178,7 +178,7 @@ private struct SessionPanel: View {
         HStack(spacing: 6) {
             Text(currentActivity)
                 .font(Theme.mono(9.5))
-                .foregroundStyle(Theme.textMuted)
+                .foregroundStyle(activityColor)
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -225,13 +225,42 @@ private struct SessionPanel: View {
 
     private var hasCard: Bool { model.currentCard != nil }
 
+    /// Time to go while a transfer runs, so the reader can decide whether to wait or walk away.
+    private var elapsedCaption: String {
+        guard let remaining = model.estimatedSecondsRemaining else { return "min:sec" }
+        if remaining < 60 { return "under a minute left" }
+        let minutes = Int((remaining / 60).rounded(.up))
+        if minutes < 60 { return "about \(minutes) min left" }
+        let hours = minutes / 60
+        return "about \(hours) h \(minutes % 60) min left"
+    }
     private var currentActivity: String {
+        if let stalled = model.stallSeconds {
+            return "Nothing has moved for \(stalled) s. The card reader or destination drive may be slow, asleep "
+                + "or disconnected. Still waiting…"
+        }
         if model.progress.phase == .idle, model.currentCard != nil {
             return model.media.isEmpty ? "No supported media found" : "Ready to transfer and verify"
         }
         guard let source = model.progress.currentSourceURL else { return model.progress.currentItem }
         let folder = model.progress.currentDestinationFolder
+        // The overall bar does not move while a big file is read back, so say how far that is.
+        if model.isBusy, let fraction = model.progress.currentItemFraction {
+            let percent = Int((fraction * 100).rounded(.down))
+            switch model.progress.phase {
+            case .verifying, .reVerifying:
+                return "Checking the copy of \(source.lastPathComponent) · \(percent)%"
+            case .checkingDuplicate:
+                return "Comparing \(source.lastPathComponent) with the copy already there · \(percent)%"
+            default:
+                break
+            }
+        }
         return folder.isEmpty ? source.path : "LAST · \(source.path) → \(folder)"
+    }
+
+    private var activityColor: Color {
+        model.stallSeconds == nil ? Theme.textMuted : Theme.caution
     }
 
     private static func elapsed(_ interval: TimeInterval) -> String {

@@ -89,9 +89,12 @@ private struct TitleBar: View {
         }
         .padding(.leading, 78)
         .padding(.trailing, 8)
-        .frame(height: 48)
+        .frame(height: Self.height)
         .background(Theme.chromeBackground)
+        .background(TrafficLightAligner(barHeight: Self.height))
     }
+
+    static let height: CGFloat = 48
 }
 
 private struct StatusPill: View {

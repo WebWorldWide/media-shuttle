@@ -4,6 +4,8 @@ import SwiftUI
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor static var openMainWindow: (() -> Void)?
+    /// The app's one model, so quitting can ask whether a transfer is running.
+    @MainActor static weak var model: AppModel?
 
     /// True when macOS started the app at login — Login Items, which `SMAppService.mainApp`
     /// registers — rather than someone opening it. `--background` forces the same path so it can
@@ -55,10 +57,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
+
+        #if DEBUG
+        // `--capture-window <png>` renders the real main window, title bar buttons included, to a
+        // file and quits. The window itself is drawn, not the screen, so no recording permission.
+        if let index = ProcessInfo.processInfo.arguments.firstIndex(of: "--capture-window"),
+           index + 1 < ProcessInfo.processInfo.arguments.count {
+            let path = ProcessInfo.processInfo.arguments[index + 1]
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                guard let window = NSApp.windows.first(where: { $0.canBecomeMain }),
+                      let frameView = window.contentView?.superview else { exit(2) }
+                let bounds = frameView.bounds
+                guard let rep = frameView.bitmapImageRepForCachingDisplay(in: bounds) else { exit(3) }
+                frameView.cacheDisplay(in: bounds, to: rep)
+                guard let data = rep.representation(using: .png, properties: [:]) else { exit(4) }
+                try? data.write(to: URL(fileURLWithPath: path))
+                for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+                    guard let control = window.standardWindowButton(button), let superview = control.superview else { continue }
+                    let inWindow = superview.convert(control.frame, to: nil)
+                    let fromTop = window.frame.height - inWindow.midY
+                    print("\(button.rawValue): center \(fromTop) pt from top, size \(control.frame.size)")
+                }
+                exit(0)
+            }
+        }
+        #endif
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+
+    /// ⌘Q in the middle of a 50 GB copy used to end the process on the spot: no log line, and an
+    /// unfinished copy left at the destination. Ask first, and quit through the cancel path so the
+    /// partial file is removed.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        MainActor.assumeIsolated {
+            guard let model = Self.model, let operation = model.runningOperationName else { return .terminateNow }
+            NSApp.activate(ignoringOtherApps: true)
+            let alert = NSAlert()
+            alert.messageText = "A \(operation) is still running"
+            alert.informativeText = operation == "erase"
+                ? "Quitting now stops the erase. Files already deleted are gone; the rest stay on the card."
+                : "Quitting now stops the transfer. Files already verified stay at the destination. "
+                    + "The file being copied is removed, and nothing on the card is touched."
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "Keep \(operation == "erase" ? "Erasing" : "Transferring")")
+            alert.addButton(withTitle: "Quit Anyway")
+            guard alert.runModal() == .alertSecondButtonReturn else { return .terminateCancel }
+            model.cancelOperationAndQuit()
+            return .terminateLater
+        }
     }
 
     // A closed SwiftUI window is removed from NSApp.windows. Raising a window that no longer
@@ -94,7 +143,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct MediaShuttleApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @State private var model = AppModel()
+    @State private var model: AppModel
+
+    init() {
+        let model = AppModel()
+        _model = State(initialValue: model)
+        AppDelegate.model = model
+    }
 
     var body: some Scene {
         WindowGroup("Media Shuttle", id: "main") {

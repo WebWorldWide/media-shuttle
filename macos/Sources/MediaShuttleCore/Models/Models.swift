@@ -223,6 +223,10 @@ public struct OperationProgress: Sendable {
     public let skippedFiles: Int
     public let currentSourceURL: URL?
     public let currentDestinationFolder: String
+    /// How far through the current file this phase is, 0...1, when the phase works through a single
+    /// file byte by byte. A 50 GB video is copied and then read back in full to verify it; without
+    /// this the overall bar sat still for the whole read-back and the transfer looked hung.
+    public let currentItemFraction: Double?
 
     public init(
         phase: OperationPhase,
@@ -234,7 +238,8 @@ public struct OperationProgress: Sendable {
         copiedFiles: Int = 0,
         skippedFiles: Int = 0,
         currentSourceURL: URL? = nil,
-        currentDestinationFolder: String = ""
+        currentDestinationFolder: String = "",
+        currentItemFraction: Double? = nil
     ) {
         self.phase = phase
         self.currentItem = currentItem
@@ -246,6 +251,7 @@ public struct OperationProgress: Sendable {
         self.skippedFiles = skippedFiles
         self.currentSourceURL = currentSourceURL
         self.currentDestinationFolder = currentDestinationFolder
+        self.currentItemFraction = currentItemFraction.map { min(max($0, 0), 1) }
     }
 
     public var fraction: Double {
@@ -322,8 +328,16 @@ public enum MediaShuttleError: LocalizedError, Equatable {
     case sourceChanged(String)
     case verificationFailed(String)
     case eraseBlocked(String)
+    /// A read from the card failed part-way. The reason is already in plain words.
+    case readFailed(file: String, reason: String)
+    /// A write to the destination failed part-way. The reason is already in plain words.
+    case writeFailed(file: String, reason: String)
     public var errorDescription: String? {
         switch self {
+        case .readFailed(let file, let reason):
+            "Couldn't read \(file) from the card. \(reason)"
+        case .writeFailed(let file, let reason):
+            "Couldn't write \(file) to the destination. \(reason)"
         case .noSupportedMedia:
             "No supported photos or videos were found on this card."
         case .insufficientSpace:
@@ -343,5 +357,56 @@ public enum MediaShuttleError: LocalizedError, Equatable {
         case .eraseBlocked(let reason):
             "Erase blocked: \(reason)"
         }
+    }
+}
+
+extension MediaShuttleError {
+    /// Turns a Foundation file error into something a reader can act on. Foundation's own text for
+    /// a failed write is "The file couldn't be saved." whatever went wrong; the cause (a full disk,
+    /// a drive that was unplugged, a dead network share) is buried in the underlying POSIX error.
+    public static func plainReason(for error: Error) -> String {
+        if let shuttle = error as? MediaShuttleError {
+            return shuttle.errorDescription ?? String(describing: shuttle)
+        }
+        if let code = posixCode(in: error as NSError) {
+            switch code {
+            case ENOSPC, EDQUOT:
+                return "The destination drive is full."
+            case EIO:
+                return "The drive reported a hardware error. Check the cable and the card, then try again."
+            case ENXIO, ENODEV, ENOENT, ENOTCONN, ENETDOWN, ENETUNREACH, EHOSTDOWN, EHOSTUNREACH,
+                 ETIMEDOUT, ESTALE, ECONNRESET, ECONNABORTED:
+                return "The drive was disconnected or stopped responding. Reconnect it and transfer again."
+            case EACCES, EPERM:
+                return "macOS didn't allow writing there. Check the folder's permissions, or the write-protect switch on the card."
+            case EROFS:
+                return "The destination is read-only."
+            case EFBIG:
+                return "The file is too large for the destination's format. exFAT or APFS can hold it; FAT32 cannot."
+            case ENAMETOOLONG:
+                return "The file name is too long for the destination."
+            case EBUSY:
+                return "The file is in use by another app."
+            default:
+                break
+            }
+        }
+        let nsError = error as NSError
+        let underlying = (nsError.userInfo[NSUnderlyingErrorKey] as? NSError)
+        let text = underlying?.localizedDescription ?? nsError.localizedDescription
+        return text.hasSuffix(".") ? text : text + "."
+    }
+
+    private static func posixCode(in error: NSError) -> Int32? {
+        var current: NSError? = error
+        var hops = 0
+        while let candidate = current, hops < 6 {
+            if candidate.domain == NSPOSIXErrorDomain {
+                return Int32(candidate.code)
+            }
+            current = candidate.userInfo[NSUnderlyingErrorKey] as? NSError
+            hops += 1
+        }
+        return nil
     }
 }

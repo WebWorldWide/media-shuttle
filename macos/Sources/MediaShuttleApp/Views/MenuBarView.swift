@@ -191,24 +191,54 @@ struct MenuBarView: View {
                     .foregroundStyle(Theme.textBright)
             }
             MenuProgressBar(fraction: model.progress.fraction, color: Theme.textBright)
-            Text(model.progress.currentItem)
-                .font(Theme.mono(9.5))
-                .foregroundStyle(Theme.textMuted)
-                .lineLimit(1)
-                .truncationMode(.middle)
             TimelineView(.periodic(from: .now, by: 1)) { _ in
-                HStack {
-                    Text("\(model.progress.completedFiles.formatted()) of \(model.progress.totalFiles.formatted()) files")
-                    Spacer()
-                    if let rate = model.throughputBytesPerSecond {
-                        Text("\(ByteCountFormatter.shuttleString(Int64(rate)))/s")
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(currentItemLine)
+                        .font(Theme.mono(9.5))
+                        .foregroundStyle(model.stallSeconds == nil ? Theme.textMuted : Theme.caution)
+                        .lineLimit(2)
+                        .truncationMode(.middle)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack {
+                        Text("\(model.progress.completedFiles.formatted()) of \(model.progress.totalFiles.formatted()) files")
+                        Spacer()
+                        if let remaining = model.estimatedSecondsRemaining {
+                            Text(Self.remainingText(remaining))
+                        } else if let rate = model.throughputBytesPerSecond {
+                            Text("\(ByteCountFormatter.shuttleString(Int64(rate)))/s")
+                        }
                     }
+                    .font(Theme.mono(9.5))
+                    .monospacedDigit()
+                    .foregroundStyle(Theme.textMuted)
                 }
-                .font(Theme.mono(9.5))
-                .monospacedDigit()
-                .foregroundStyle(Theme.textMuted)
+            }
+
+        }
+    }
+
+    private var currentItemLine: String {
+        if let stalled = model.stallSeconds {
+            return "Nothing has moved for \(stalled) s. The drive may be slow, asleep or disconnected."
+        }
+        if let fraction = model.progress.currentItemFraction {
+            let percent = Int((fraction * 100).rounded(.down))
+            switch model.progress.phase {
+            case .verifying, .reVerifying:
+                return "Checking the copy of \(model.progress.currentItem) · \(percent)%"
+            case .checkingDuplicate:
+                return "Comparing \(model.progress.currentItem) with the copy already there · \(percent)%"
+            default:
+                break
             }
         }
+        return model.progress.currentItem
+    }
+
+    private static func remainingText(_ seconds: TimeInterval) -> String {
+        if seconds < 60 { return "under 1 min left" }
+        let minutes = Int((seconds / 60).rounded(.up))
+        return minutes < 60 ? "\(minutes) min left" : "\(minutes / 60) h \(minutes % 60) min left"
     }
 
     private func photosProgress(_ photos: PhotosImportProgress) -> some View {

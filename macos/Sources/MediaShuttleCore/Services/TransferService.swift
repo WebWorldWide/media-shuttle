@@ -6,6 +6,7 @@ public actor TransferService {
 
     private static let bufferSize = 1_048_576
     private static let partialMarker = ".partial-"
+    private static let reportInterval: Duration = .milliseconds(50)
 
     private let stateStore: StateStore
     private let logger: AppLogger
@@ -32,8 +33,6 @@ public actor TransferService {
             destinationRoot.resolvingSymlinksInPath(),
             cardRoot: card.rootURL.resolvingSymlinksInPath()
         )
-        cleanupPartials(at: destinationRoot)
-
         await progress?(OperationProgress(
             phase: .scanning,
             currentItem: "Scanning card",
@@ -42,6 +41,7 @@ public actor TransferService {
             processedBytes: 0,
             totalBytes: 0
         ))
+        await cleanupPartials(at: destinationRoot)
         await logger.write("Scanning \(card.rootURL.path) for camera media")
         let media = try MediaClassifier.scan(card.rootURL)
         guard !media.isEmpty else { throw MediaShuttleError.noSupportedMedia }
@@ -91,8 +91,29 @@ public actor TransferService {
                         currentSourceURL: item.sourceURL,
                         currentDestinationFolder: relativeFolder
                     ))
-                    let calculatedSourceHash = try await FileHasher.sha256(at: item.sourceURL)
-                    let existingHash = try await FileHasher.sha256(at: destinationURL)
+                    // Two full reads for a file that is probably already safe. On a 50 GB video that
+                    // is minutes with the bar still, so report the pair as one 0...1 pass.
+                    let counter = ProgressCounter()
+                    let base = OperationProgress(
+                        phase: .checkingDuplicate,
+                        currentItem: item.fileName,
+                        completedFiles: completedFiles,
+                        totalFiles: media.count,
+                        processedBytes: processedBytes,
+                        totalBytes: totalBytes,
+                        copiedFiles: session.copiedCount,
+                        skippedFiles: session.skippedCount,
+                        currentSourceURL: item.sourceURL,
+                        currentDestinationFolder: relativeFolder
+                    )
+                    let (calculatedSourceHash, existingHash) = try await withPeriodicReports(
+                        of: base, counter: counter, total: item.size * 2, to: progress
+                    ) {
+                        (
+                            try await FileHasher.sha256(at: item.sourceURL) { counter.value = $0 },
+                            try await FileHasher.sha256(at: destinationURL) { counter.value = item.size + $0 }
+                        )
+                    }
                     sourceHash = calculatedSourceHash
                     if calculatedSourceHash.caseInsensitiveCompare(existingHash) == .orderedSame {
                         skipped = true
@@ -212,13 +233,51 @@ public actor TransferService {
         var currentBytes = processedBytes
         var copiedBytes: Int64 = 0
 
+        // A fast reader hands over a megabyte many hundreds of times a second. Each report is a hop
+        // to the main actor, so mid-file reports are spaced out here; every change of phase still
+        // goes through at once.
+        let throttle = ProgressThrottle(interval: Self.reportInterval)
+        func snapshot(_ phase: OperationPhase, processed: Int64, itemFraction: Double) -> OperationProgress {
+            OperationProgress(
+                phase: phase,
+                currentItem: item.fileName,
+                completedFiles: completedFiles,
+                totalFiles: totalFiles,
+                processedBytes: processed,
+                totalBytes: totalBytes,
+                copiedFiles: copiedFiles,
+                skippedFiles: skippedFiles,
+                currentSourceURL: item.sourceURL,
+                currentDestinationFolder: destinationFolder,
+                currentItemFraction: itemFraction
+            )
+        }
+
         do {
             await logger.write("Copying \(item.fileName)")
-            guard FileManager.default.createFile(atPath: temporaryURL.path, contents: nil) else {
-                throw CocoaError(.fileWriteUnknown)
+            if throttle.allows(force: true) {
+                await progress?(snapshot(.copying, processed: currentBytes, itemFraction: 0))
             }
-            let source = try FileHandle(forReadingFrom: item.sourceURL)
-            let destination = try FileHandle(forWritingTo: temporaryURL)
+            guard FileManager.default.createFile(atPath: temporaryURL.path, contents: nil) else {
+                throw MediaShuttleError.writeFailed(
+                    file: item.fileName,
+                    reason: "A new file couldn't be created in \(destinationFolder). "
+                        + "Check that the destination drive is connected and not full or read-only."
+                )
+            }
+            let source: FileHandle
+            do {
+                source = try FileHandle(forReadingFrom: item.sourceURL)
+            } catch {
+                throw MediaShuttleError.readFailed(file: item.fileName, reason: MediaShuttleError.plainReason(for: error))
+            }
+            let destination: FileHandle
+            do {
+                destination = try FileHandle(forWritingTo: temporaryURL)
+            } catch {
+                try? source.close()
+                throw MediaShuttleError.writeFailed(file: item.fileName, reason: MediaShuttleError.plainReason(for: error))
+            }
             defer {
                 try? source.close()
                 try? destination.close()
@@ -227,57 +286,91 @@ public actor TransferService {
             var sourceHasher = SHA256()
             while true {
                 try Task.checkCancellation()
-                let data = try source.read(upToCount: Self.bufferSize) ?? Data()
+                let data: Data
+                do {
+                    data = try source.read(upToCount: Self.bufferSize) ?? Data()
+                } catch {
+                    throw MediaShuttleError.readFailed(file: item.fileName, reason: MediaShuttleError.plainReason(for: error))
+                }
                 if data.isEmpty { break }
                 sourceHasher.update(data: data)
-                try destination.write(contentsOf: data)
+                do {
+                    try destination.write(contentsOf: data)
+                } catch {
+                    throw MediaShuttleError.writeFailed(file: item.fileName, reason: MediaShuttleError.plainReason(for: error))
+                }
                 currentBytes += Int64(data.count)
                 copiedBytes += Int64(data.count)
-                await progress?(OperationProgress(
-                    phase: .copying,
-                    currentItem: item.fileName,
-                    completedFiles: completedFiles,
-                    totalFiles: totalFiles,
-                    processedBytes: currentBytes,
-                    totalBytes: totalBytes,
-                    copiedFiles: copiedFiles,
-                    skippedFiles: skippedFiles,
-                    currentSourceURL: item.sourceURL,
-                    currentDestinationFolder: destinationFolder
-                ))
+                if throttle.allows(force: false) {
+                    await progress?(snapshot(
+                        .copying, processed: currentBytes, itemFraction: Double(copiedBytes) / Double(max(item.size, 1))
+                    ))
+                }
             }
             guard copiedBytes == item.size else {
                 throw MediaShuttleError.sourceChanged(item.fileName)
             }
-            try destination.synchronize()
+            do {
+                // Flushing gigabytes of buffered writes to a slow drive can take a while on its own;
+                // the bar is shown full for this file so the wait reads as the end of the copy.
+                if throttle.allows(force: true) {
+                    await progress?(snapshot(.copying, processed: currentBytes, itemFraction: 1))
+                }
+                try destination.synchronize()
+            } catch {
+                throw MediaShuttleError.writeFailed(file: item.fileName, reason: MediaShuttleError.plainReason(for: error))
+            }
             try FileManager.default.setAttributes(
                 [.modificationDate: item.modifiedAt],
                 ofItemAtPath: temporaryURL.path
             )
 
-            await progress?(OperationProgress(
-                phase: .verifying,
-                currentItem: item.fileName,
-                completedFiles: completedFiles,
-                totalFiles: totalFiles,
-                processedBytes: currentBytes,
-                totalBytes: totalBytes,
-                copiedFiles: copiedFiles,
-                skippedFiles: skippedFiles,
-                currentSourceURL: item.sourceURL,
-                currentDestinationFolder: destinationFolder
-            ))
-
+            if throttle.allows(force: true) {
+                await progress?(snapshot(.verifying, processed: currentBytes, itemFraction: 0))
+            }
             let sourceHash = sourceHasher.finalize().map { String(format: "%02X", $0) }.joined()
-            let destinationHash = try await FileHasher.sha256(at: temporaryURL)
+
+            // The read-back of a large file is the longest silent stretch in a transfer, so it is
+            // reported a few times a second while the hash runs.
+            let verifiedBytes = ProgressCounter()
+            let destinationHash: String
+            do {
+                destinationHash = try await withPeriodicReports(
+                    of: snapshot(.verifying, processed: currentBytes, itemFraction: 0),
+                    counter: verifiedBytes, total: item.size, to: progress
+                ) {
+                    try await FileHasher.sha256(at: temporaryURL) { verifiedBytes.value = $0 }
+                }
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                throw MediaShuttleError.writeFailed(
+                    file: item.fileName,
+                    reason: "The copy couldn't be read back to check it. " + MediaShuttleError.plainReason(for: error)
+                )
+            }
             guard sourceHash.caseInsensitiveCompare(destinationHash) == .orderedSame else {
                 throw MediaShuttleError.verificationFailed(item.fileName)
             }
-            try FileManager.default.moveItem(at: temporaryURL, to: destinationURL)
+            do {
+                try FileManager.default.moveItem(at: temporaryURL, to: destinationURL)
+            } catch {
+                throw MediaShuttleError.writeFailed(
+                    file: item.fileName,
+                    reason: "The verified copy couldn't be renamed into place. " + MediaShuttleError.plainReason(for: error)
+                )
+            }
             await logger.write("Verified \(item.fileName)")
             return (sourceHash, currentBytes)
         } catch {
-            try? FileManager.default.removeItem(at: temporaryURL)
+            do {
+                try FileManager.default.removeItem(at: temporaryURL)
+            } catch let removeError {
+                await logger.write(
+                    "Could not remove unfinished copy \(temporaryURL.lastPathComponent): "
+                        + MediaShuttleError.plainReason(for: removeError)
+                )
+            }
             throw error
         }
     }
@@ -316,15 +409,36 @@ public actor TransferService {
         }
     }
 
-    private func cleanupPartials(at root: URL) {
-        guard let enumerator = FileManager.default.enumerator(
-            at: root,
-            includingPropertiesForKeys: [.isRegularFileKey],
-            options: [.skipsPackageDescendants]
-        ) else { return }
-        while let url = enumerator.nextObject() as? URL {
-            guard isOwnedPartial(url.lastPathComponent) else { continue }
-            try? FileManager.default.removeItem(at: url)
+    /// Removes unfinished copies left by an earlier run. Only the folders this app writes to are
+    /// searched: walking the whole destination stalled for minutes, before the first progress
+    /// report, whenever the destination was the root of a large drive. A copy that cannot be
+    /// removed is logged, since a 50 GB leftover is worth knowing about.
+    private func cleanupPartials(at root: URL) async {
+        var removed = 0
+        for kind in MediaKind.allCases {
+            let folder = MediaClassifier.destinationFolder(for: kind, under: root)
+            guard FileManager.default.fileExists(atPath: folder.path),
+                  let enumerator = FileManager.default.enumerator(
+                      at: folder,
+                      includingPropertiesForKeys: [.isRegularFileKey],
+                      options: [.skipsPackageDescendants],
+                      errorHandler: { _, _ in true }
+                  ) else { continue }
+            while let url = enumerator.nextObject() as? URL {
+                guard isOwnedPartial(url.lastPathComponent) else { continue }
+                do {
+                    try FileManager.default.removeItem(at: url)
+                    removed += 1
+                } catch {
+                    await logger.write(
+                        "Could not remove unfinished copy \(url.lastPathComponent): "
+                            + MediaShuttleError.plainReason(for: error)
+                    )
+                }
+            }
+        }
+        if removed > 0 {
+            await logger.write("Removed \(removed) unfinished \(removed == 1 ? "copy" : "copies") left by an earlier transfer")
         }
     }
 
@@ -399,9 +513,18 @@ public actor TransferService {
         }
     }
 
+    /// The "important usage" figure counts purgeable space on APFS, which is the honest number for
+    /// the startup disk. On exFAT and other non-APFS volumes, the format most camera-destination
+    /// drives use, it reports zero, so every transfer to such a drive was refused as "not enough
+    /// free space" with a terabyte free. Fall back to the plain figure there.
     private func ensureFreeSpace(at destination: URL, requiredBytes: Int64) throws {
-        let values = try destination.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
-        guard let available = values.volumeAvailableCapacityForImportantUsage else { return }
+        let values = try destination.resourceValues(forKeys: [
+            .volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey
+        ])
+        let important = values.volumeAvailableCapacityForImportantUsage ?? 0
+        let plain = Int64(values.volumeAvailableCapacity ?? 0)
+        let available = important > 0 ? important : plain
+        guard available > 0 else { return }
         let reserve: Int64 = 1_073_741_824
         guard available >= requiredBytes + reserve else { throw MediaShuttleError.insufficientSpace }
     }
